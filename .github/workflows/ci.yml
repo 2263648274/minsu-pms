@@ -37,7 +37,11 @@ jobs:
         env:
           # 如果未来用了私有 npm 包，从 secret 注入 token
           NPM_CONFIG_TOKEN: ${{ secrets.NPM_CONFIG_TOKEN }}
-        run: npm install
+        run: |
+          # 本地 lockfile 指向 npmmirror.com 镜像，CI 海外 runner 访问超时。
+          # 强制替换为 npmjs.org 官方源，保证 CI 能拉到依赖。
+          sed -i 's|registry\.npmmirror\.com|registry.npmjs.org|g' package-lock.json
+          npm ci --no-audit --no-fund
 
       - name: Type-check
         run: npx vue-tsc --noEmit -p tsconfig.app.json
