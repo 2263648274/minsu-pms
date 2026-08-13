@@ -1,0 +1,501 @@
+// ========== Linear/Modern Design System ==========
+// Based on the design specification: Precision, depth, and fluidity
+
+[data-theme='linear'] {
+  // Base font setup
+  font-family: "Inter", "Geist Sans", system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+// ========== Background System ==========
+// Layer 1-4: Multiple layers for ambient lighting
+
+.linear-bg {
+  position: relative;
+  min-height: 100vh;
+  // Layer 1: Base radial gradient - uses theme variables
+  background: radial-gradient(ellipse at top, var(--background-deep) 0%, var(--background-base) 50%, var(--background-deep) 100%);
+  overflow: hidden;
+}
+
+// Noise texture overlay (Layer 2)
+.linear-bg::before {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.015;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbine type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 1;
+}
+
+// Grid overlay (Layer 4)
+.linear-bg::after {
+  content: '';
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  opacity: 0.02;
+  background-image:
+    linear-gradient(var(--border-default) 1px, transparent 1px),
+    linear-gradient(90deg, var(--border-default) 1px, transparent 1px);
+  background-size: 64px 64px;
+  pointer-events: none;
+  z-index: 2;
+}
+
+// Animated gradient blobs (Layer 3)
+.linear-blob {
+  position: fixed;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.25;
+  animation: float 8s ease-in-out infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.linear-blob--primary {
+  width: 900px;
+  height: 1400px;
+  top: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #5E6AD2;
+}
+
+.linear-blob--secondary {
+  width: 600px;
+  height: 800px;
+  top: 30%;
+  left: -10%;
+  background: #8b5cf6;
+  opacity: 0.15;
+  animation-duration: 10s;
+  animation-delay: -2s;
+}
+
+.linear-blob--tertiary {
+  width: 500px;
+  height: 700px;
+  top: 40%;
+  right: -5%;
+  background: #0ea5e9;
+  opacity: 0.12;
+  animation-duration: 9s;
+  animation-delay: -4s;
+}
+
+.linear-blob--bottom {
+  width: 800px;
+  height: 400px;
+  bottom: -10%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #5E6AD2;
+  opacity: 0.10;
+  animation: pulse 6s ease-in-out infinite;
+}
+
+@keyframes float {
+  0%, 100% {
+    transform: translateY(0) rotate(0deg);
+  }
+  50% {
+    transform: translateY(-20px) rotate(1deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 0.08;
+    transform: translateX(-50%) scale(1);
+  }
+  50% {
+    opacity: 0.15;
+    transform: translateX(-50%) scale(1.1);
+  }
+}
+
+// Content sits above background layers
+.linear-content {
+  position: relative;
+  z-index: 3;
+}
+
+// ========== Typography ==========
+
+.linear-display {
+  font-size: clamp(2.5rem, 8vw, 5rem);
+  font-weight: 600;
+  letter-spacing: -0.03em;
+  line-height: 1;
+  background: linear-gradient(to bottom, var(--foreground) 0%, var(--foreground) 60%, rgba(237, 222, 239, 0.7) 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+
+.linear-h1 {
+  font-size: clamp(2rem, 5vw, 3.5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.1;
+  color: var(--foreground);
+}
+
+.linear-h2 {
+  font-size: clamp(1.5rem, 3vw, 2.5rem);
+  font-weight: 600;
+  letter-spacing: -0.02em;
+  line-height: 1.2;
+  color: var(--foreground);
+}
+
+.linear-h3 {
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  color: var(--foreground);
+}
+
+.linear-body-large {
+  font-size: clamp(1rem, 1.5vw, 1.25rem);
+  line-height: 1.6;
+  color: var(--foreground-muted);
+}
+
+.linear-body {
+  font-size: 0.875rem;
+  line-height: 1.6;
+  color: var(--foreground-muted);
+}
+
+.linear-label {
+  font-size: 0.75rem;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--foreground-muted);
+}
+
+.linear-gradient-text {
+  background: linear-gradient(90deg, #5E6AD2, #818cf8, #5E6AD2);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  animation: gradient-shimmer 4s ease-in-out infinite;
+}
+
+@keyframes gradient-shimmer {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+// ========== Cards ==========
+
+.linear-card {
+  position: relative;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.02) 100%);
+  border: 1px solid var(--border-default);
+  border-radius: 16px;
+  padding: 24px;
+  overflow: hidden;
+  // Multi-layer shadow
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.06),
+    0 2px 20px rgba(0, 0, 0, 0.4),
+    0 0 40px rgba(0, 0, 0, 0.2);
+  transition: var(--transition-base);
+}
+
+.linear-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(255, 255, 255, 0.1), transparent);
+  pointer-events: none;
+}
+
+.linear-card--spotlight {
+  cursor: pointer;
+}
+
+// Spotlight effect container (JS handles positioning)
+.linear-card__spotlight {
+  position: absolute;
+  width: 300px;
+  height: 300px;
+  background: radial-gradient(circle, rgba(94, 106, 210, 0.15), transparent 70%);
+  opacity: 0;
+  transition: opacity 300ms var(--easing-expo-out);
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
+
+.linear-card--spotlight:hover .linear-card__spotlight {
+  opacity: 1;
+}
+
+.linear-card:hover {
+  border-color: var(--border-hover);
+  transform: translateY(-4px);
+  box-shadow:
+    0 0 0 1px rgba(255, 255, 255, 0.1),
+    0 8px 40px rgba(0, 0, 0, 0.5),
+    0 0 80px rgba(94, 106, 210, 0.1);
+}
+
+.linear-card--glass {
+  backdrop-filter: blur(12px);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.06) 0%, rgba(255, 255, 255, 0.02) 100%);
+}
+
+.linear-card-content {
+  position: relative;
+  z-index: 1;
+}
+
+// ========== Buttons ==========
+
+.linear-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 12px 24px;
+  font-size: 0.875rem;
+  font-weight: 500;
+  border-radius: 8px;
+  border: none;
+  cursor: pointer;
+  transition: var(--transition-quick);
+  position: relative;
+  overflow: hidden;
+}
+
+.linear-btn--primary {
+  background: var(--accent);
+  color: white;
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 4px 12px rgba(94, 106, 210, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+.linear-btn--primary:hover {
+  background: var(--accent-bright);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.6),
+    0 6px 20px rgba(94, 106, 210, 0.4),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+  transform: translateY(-1px);
+}
+
+.linear-btn--primary:active {
+  transform: scale(0.98);
+  box-shadow:
+    0 0 0 1px rgba(94, 106, 210, 0.5),
+    0 2px 8px rgba(94, 106, 210, 0.3),
+    inset 0 1px 0 0 rgba(255, 255, 255, 0.2);
+}
+
+// Shine effect
+.linear-btn--primary::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s;
+}
+
+.linear-btn--primary:hover::after {
+  left: 100%;
+}
+
+.linear-btn--secondary {
+  background: var(--surface);
+  color: var(--foreground);
+  border: 1px solid var(--border-default);
+  box-shadow: inset 0 1px 0 0 rgba(255, 255, 255, 0.05);
+}
+
+.linear-btn--secondary:hover {
+  background: var(--surface-hover);
+  border-color: var(--border-hover);
+  transform: translateY(-1px);
+}
+
+.linear-btn--secondary:active {
+  transform: scale(0.98);
+}
+
+.linear-btn--ghost {
+  background: transparent;
+  color: var(--foreground-muted);
+  border: none;
+}
+
+.linear-btn--ghost:hover {
+  background: var(--surface);
+  color: var(--foreground);
+}
+
+.linear-btn--full {
+  width: 100%;
+}
+
+// ========== Form Inputs ==========
+
+.linear-input {
+  width: 100%;
+  padding: 12px 16px;
+  background: #0F0F12;
+  border: 1px solid var(--border-default);
+  border-radius: 8px;
+  color: var(--foreground);
+  font-size: 0.875rem;
+  transition: var(--transition-quick);
+  outline: none;
+}
+
+.linear-input::placeholder {
+  color: var(--foreground-subtle);
+}
+
+.linear-input:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px rgba(94, 106, 210, 0.2);
+}
+
+// ========== Bento Grid Layout ==========
+
+.linear-bento {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  grid-auto-rows: 180px;
+  gap: 24px;
+}
+
+// Asymmetric spanning utilities
+.linear-bento-span-2 {
+  grid-column: span 2;
+}
+
+.linear-bento-span-3 {
+  grid-column: span 3;
+}
+
+.linear-bento-span-4 {
+  grid-column: span 4;
+}
+
+.linear-bento-span-6 {
+  grid-column: span 6;
+}
+
+.linear-bento-row-1 {
+  grid-row: span 1;
+}
+
+.linear-bento-row-2 {
+  grid-row: span 2;
+}
+
+// Responsive breakpoints
+@media (max-width: 1024px) {
+  .linear-bento {
+    grid-template-columns: repeat(3, 1fr);
+    grid-auto-rows: 160px;
+    gap: 20px;
+  }
+
+  .linear-bento-span-4 {
+    grid-column: span 3;
+  }
+
+  .linear-bento-span-6 {
+    grid-column: span 3;
+  }
+}
+
+@media (max-width: 768px) {
+  .linear-bento {
+    grid-template-columns: 1fr;
+    grid-auto-rows: auto;
+    gap: 16px;
+  }
+
+  .linear-bento-span-2,
+  .linear-bento-span-3,
+  .linear-bento-span-4,
+  .linear-bento-span-6 {
+    grid-column: span 1;
+  }
+}
+
+// ========== Section Dividers ==========
+
+.linear-section {
+  padding: clamp(48px, 8vw, 128px) 0;
+}
+
+.linear-section + .linear-section {
+  border-top: 1px solid var(--border-default);
+}
+
+.linear-divider {
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--border-default), transparent);
+  margin: 64px 0;
+}
+
+// ========== Badges ==========
+
+.linear-badge {
+  display: inline-flex;
+  align-items: center;
+  padding: 4px 12px;
+  border-radius: 9999px;
+  border: 1px solid var(--border-accent);
+  font-size: 0.75rem;
+  color: var(--accent);
+  background: rgba(94, 106, 210, 0.1);
+}
+
+// ========== Accessibility ==========
+// Respect user preferences for motion
+
+@media (prefers-reduced-motion: reduce) {
+  .linear-blob {
+    animation: none;
+  }
+
+  .linear-gradient-text {
+    animation: none;
+  }
+
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

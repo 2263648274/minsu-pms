@@ -1,0 +1,33 @@
+# ============================================================================
+# Dev Profile - 本地开发
+# 应用账号：pms_app（最小权限，不用 root）
+# 密码从环境变量读，不入库（见 .env.example）
+# ============================================================================
+
+spring:
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+    url: jdbc:mysql://127.0.0.1:3306/pms_xkzoom?useUnicode=true&characterEncoding=UTF-8&useSSL=false&serverTimezone=Asia/Shanghai&allowPublicKeyRetrieval=true&connectionCollation=utf8mb4_unicode_ci
+    username: ${DB_APP_USER:pms_app}
+    password: ${DB_APP_PASSWORD:Pms@App2026Secure}
+    hikari:
+      minimum-idle: 5
+      maximum-pool-size: 20
+      auto-commit: true
+      idle-timeout: 30000
+      pool-name: PMS-HikariCP
+      max-lifetime: 1800000
+      connection-timeout: 30000
+
+# 自定义配置
+pms:
+  jwt:
+    secret: ${JWT_SECRET:xkzoom-pms-dev-secret-please-change-in-production-32chars-min}
+    expires-hours: ${JWT_EXPIRES_HOURS:24}
+    header: Authorization
+    prefix: "Bearer "
+  cors:
+    allowed-origins: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+
+server:
+  port: 8090

@@ -1,0 +1,72 @@
+# ==================== 依赖与构建产物 ====================
+node_modules/
+dist/
+backend/target/
+backend/.mvn/
+backend/mvnw
+backend/mvnw.cmd
+
+# Capacitor / Android 构建产物
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+android/.idea/
+android/captures/
+android/.cxx/
+*.apk
+*.aab
+*.aar
+*.ipa
+
+# Vite / TS 缓存
+.vite/
+*.tsbuildinfo
+.tsc-cache/
+
+# ==================== 环境与密钥 ====================
+.env
+.env.local
+.env.*.local
+.env.production
+.env.production.*
+*.pem
+*.key
+*.p12
+
+# ==================== 日志与临时调试 ====================
+*.log
+*.out
+*.err
+build.log
+build.out
+frontend-*.log
+npm-*.log
+tsc.log
+tsc.err
+fix-mock.ps1
+fix2.ps1
+test-api.cjs
+fix-*.ps1
+debug-*.cjs
+debug-*.js
+test-*.cjs
+test-*.js
+
+# ==================== IDE 与编辑器 ====================
+.idea/
+.vscode/
+.vs/
+*.iml
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# ==================== 系统运行时缓存 ====================
+.cache/
+.tmp/
+tmp/
+*.pid
+*.seed
+*.pid.lock

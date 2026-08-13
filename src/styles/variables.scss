@@ -1,0 +1,88 @@
+// ========== Linear Design System - Theme Variables ==========
+// All themes share the same design system structure, only colors differ
+// Base (Light Mode): Linear structure with light colors
+:root {
+  // Color Palette - Light Mode
+  --background-deep: #f8fafc;
+  --background-base: #fafbfc;
+  --background-elevated: #ffffff;
+  --surface: rgba(94, 106, 210, 0.05);
+  --surface-hover: rgba(94, 106, 210, 0.08);
+  --foreground: #1e293b;
+  --foreground-muted: #64748b;
+  --foreground-subtle: rgba(30, 41, 59, 0.60);
+  --accent: #5E6AD2;
+  --accent-bright: #6872D9;
+  --accent-glow: rgba(94, 106, 210, 0.25);
+  --border-default: rgba(148, 163, 184, 0.35);
+  --border-hover: rgba(148, 163, 184, 0.6);
+  --border-accent: rgba(94, 106, 210, 0.4);
+
+  // Semantic colors
+  --primary-color: var(--accent);
+  --success-color: #10b981;
+  --warning-color: #f59e0b;
+  --danger-color: #ef4444;
+  --info-color: var(--foreground-muted);
+
+  // Background aliases for compatibility
+  --bg-color: var(--background-base);
+  --card-bg: var(--surface);
+  --text-primary: var(--foreground);
+  --text-regular: var(--foreground-muted);
+  --text-secondary: var(--foreground-subtle);
+  --border-color: var(--border-default);
+
+  // Layout
+  --sidebar-bg: var(--background-elevated);
+  --sidebar-text: var(--foreground-muted);
+  --header-bg: rgba(255, 255, 255, 0.85);
+
+  --header-height: 60px;
+
+  // Animation - Expo Out easing as per Linear design
+  --easing-expo-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --transition-quick: all 200ms var(--easing-expo-out);
+  --transition-base: all 300ms var(--easing-expo-out);
+  --transition-slow: all 600ms var(--easing-expo-out);
+}
+
+// ========== Linear/Modern Design System - Dark Mode ==========
+// Display name is "深色模式" internally it's linear
+[data-theme='linear'] {
+  // Color Palette - Deep Space with Ambient Light
+  --background-deep: #020203;
+  --background-base: #050506;
+  --background-elevated: #0a0a0c;
+  --surface: rgba(255, 255, 255, 0.05);
+  --surface-hover: rgba(255, 255, 255, 0.08);
+  --foreground: #EDEDEF;
+  --foreground-muted: #8A8F98;
+  --foreground-subtle: rgba(255, 255, 255, 0.60);
+  --accent: #5E6AD2;
+  --accent-bright: #6872D9;
+  --accent-glow: rgba(94, 106, 210, 0.3);
+  --border-default: rgba(255, 255, 255, 0.08);
+  --border-hover: rgba(255, 255, 255, 0.14);
+  --border-accent: rgba(94, 106, 210, 0.35);
+
+  // Semantic colors - adjusted for dark background contrast
+  --primary-color: var(--accent);
+  --success-color: #4ade80;
+  --warning-color: #fbbf24;
+  --danger-color: #f87171;
+  --info-color: var(--foreground-muted);
+
+  // Background aliases
+  --bg-color: var(--background-base);
+  --card-bg: var(--surface);
+  --text-primary: var(--foreground);
+  --text-regular: var(--foreground-muted);
+  --text-secondary: var(--foreground-subtle);
+  --border-color: var(--border-default);
+
+  // Layout
+  --sidebar-bg: var(--background-elevated);
+  --sidebar-text: var(--foreground-muted);
+  --header-bg: rgba(10, 10, 12, 0.85);
+}
