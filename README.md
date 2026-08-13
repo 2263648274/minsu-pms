@@ -1,175 +1,179 @@
-# CRUD Frontend Template
+# 民宿主后台系统 · minsu-pms
 
 [![Vue 3](https://img.shields.io/badge/Vue%203-4FC08D?style=flat-square&logo=vue.js&logoColor=white)](https://vuejs.org/)
 [![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
 [![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white)](https://vitejs.dev/)
-[![Element Plus](https://img.shields.io/badge/Element%20Plus-409EFF?style=flat-square&logo=element&logoColor=white)](https://element-plus.org/)
-[![Pinia](https://img.shields.io/badge/Pinia-FCD34D?style=flat-square&logo=pinia&logoColor=black)](https://pinia.vuejs.org/)
+[![Element Plus](https://img.shields.io/badge/Element%20Plus-409EFF?style=flat-square&logo=element-plus&logoColor=white)](https://element-plus.org/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot%202.7-6DB33F?style=flat-square&logo=spring-boot&logoColor=white)](https://spring.io/projects/spring-boot)
+[![MyBatis-Plus](https://img.shields.io/badge/MyBatis--Plus%203.5-2C8EB7?style=flat-square)](https://baomidou.com/)
+[![MySQL](https://img.shields.io/badge/MySQL%208-4479A1?style=flat-square&logo=mysql&logoColor=white)](https://www.mysql.com/)
+[![Capacitor](https://img.shields.io/badge/Capacitor-1199EE?style=flat-square&logo=capacitor&logoColor=white)](https://capacitorjs.com/)
 
-通用前端 CRUD 开发模板，基于 Vue 3 + TypeScript 构建，开箱即用，支持响应式多端适配。
+> 民宿 PMS（Property Management System）管理系统，专为民宿管理者使用，**不对用户开放**。
+> 类似百居易的全栈方案：房源管理、库存房态、房价管理、订单管理、OTA 渠道分发、财务对账、营业报表。
 
-## ✨ 特性
+---
 
-- 🎨 **双端架构** - 用户端 + 管理员端分离设计
-- 🌓 **深色模式** - 支持浅色/深色主题一键切换
-- 📱 **全响应式** - 完美适配桌面端、平板、手机
-- 📲 **原生移动应用** - 支持 Capacitor 打包成 Android/iOS 原生应用
-- 🔐 **权限管理** - 基于角色的路由权限控制
-- 🎯 **TypeScript** - 全程类型推导，更好的开发体验
-- ⚡ **Vite 驱动** - 极速的开发启动和热更新
-- 🎭 **流畅动画** - GSAP 动画 + 视差滚动 + 卡片光斑效果
-- 📦 **组件化** - 清晰的项目结构，易于扩展
+## ✨ 核心模块
 
-## 🛠️ 技术栈
+| 模块 | 状态 | 说明 |
+| --- | --- | --- |
+| 仪表盘 | ✅ | 今日营收 / 入住率 / 房态概览 |
+| 房源管理 | ✅ | 物业 / 房型 / 房间三级管理 |
+| **库存房态** | ✅ Phase 2 | 30/60/90 天日历，可视化关房 / 限量 |
+| **房价管理** | 🚧 Phase 2 | 基础价 / 节假日 / 渠道 / 会员四维定价 |
+| 订单管理 | ✅ | 多平台订单聚合与入住核验 |
+| 客人管理 | ✅ | 客户档案 / VIP 等级 / 入住历史 |
+| OTA 渠道 | 📅 Phase 3 | 携程 / 飞猪 / 美团 / 抖音 / 淘宝 一键上架 |
+| 财务对账 | 📅 Phase 4 | 多平台结算单核对 |
+| 营业报表 | 📅 Phase 4 | 营收 / ADR / RevPAR 可视化 |
 
-- **框架:** Vue 3 + Composition API + `<script setup>`
-- **语言:** TypeScript
-- **构建工具:** Vite
-- **UI 组件库:** Element Plus
-- **状态管理:** Pinia
-- **路由:** Vue Router
-- **动画:** GSAP
-- **样式:** SCSS
-- **移动端:** Capacitor（支持原生App打包）
+---
 
-## 🚀 快速开始
+## 🏗️ 技术栈
 
-```bash
-# 克隆项目
-git clone https://github.com/your-username/crud-frontend-template.git
+### 前端
+- **Vue 3** + Composition API + `<script setup>`
+- **TypeScript** 全程类型推导
+- **Vite** 构建工具
+- **Element Plus** UI 组件库
+- **Pinia** 状态管理
+- **Vue Router** + 路由守卫（基于角色）
+- **Capacitor** Android 壳打包
 
-# 进入项目目录
-cd crud-frontend-template
+### 后端 (`backend/`)
+- **Spring Boot 2.7.18** + JDK 17
+- **MyBatis-Plus 3.5.5** ORM
+- **Spring Security** + **JWT (jjwt 0.12.5)**
+- **Flyway** 数据库迁移
+- **Hutool** 工具库
 
-# 安装依赖
-npm install
+### 数据
+- **MySQL 8.0+**
 
-# 启动开发服务器
-npm run dev
-```
-
-## 📦 构建
-
-```bash
-# 生产构建
-npm run build
-
-# 预览构建结果
-npm run preview
-```
-
-## 📲 移动端打包
-
-项目集成 [Capacitor](https://capacitorjs.com/)，支持打包成 Android/iOS 原生应用：
-
-```bash
-# 构建网页资源
-npm run build
-
-# 同步资源到原生项目
-npx cap sync
-
-# 打开 Android Studio 编译调试
-npx cap open android
-
-# 打开 Xcode 编译调试（仅 macOS）
-npx cap open ios
-```
+---
 
 ## 📁 项目结构
 
 ```
-├── src/
-│   ├── components/      # 通用组件
-│   │   └── user/       # 用户端组件
-│   ├── composables/     # 组合式函数
-│   ├── layouts/        # 布局组件
-│   ├── pages/          # 页面路由
-│   ├── router/         # 路由配置
-│   ├── services/       # API 服务
-│   ├── store/          # Pinia 状态管理
-│   │   └── modules/    # 状态模块
-│   ├── styles/         # 全局样式
-│   ├── types/          # 类型定义
-│   └── views/          # 页面视图
-│       ├── user/       # 用户端页面
-│       ├── admin/      # 管理员端页面
-│       └── error/      # 错误页面
-├── public/             # 静态资源
-├── android/            # Android 原生工程（Capacitor）
-└── capacitor.config.ts # Capacitor 配置
+minsu-pms/
+├── src/                          # 前端源码
+│   ├── api/                      # axios 接口封装
+│   ├── views/admin/              # 管理后台页面
+│   │   ├── Dashboard.vue
+│   │   ├── InventoryManage.vue   # 库存房态（Phase 2）
+│   │   ├── RatePlanManage.vue    # 房价管理（Phase 2）
+│   │   ├── RoomManage.vue
+│   │   └── ...
+│   ├── channels/                 # OTA 适配层骨架
+│   │   ├── adapters/             # 5 平台 adapter 占位
+│   │   ├── core/                 # ChannelManager / SyncEngine
+│   │   └── types/                # ChannelAdapter 接口契约
+│   ├── layouts/                  # 布局组件
+│   ├── stores/                   # Pinia 状态模块
+│   ├── types/domain/             # 领域类型（property / booking / channel ...）
+│   ├── router/                   # 路由配置 + 守卫
+│   └── styles/                   # 全局样式
+├── android/                      # Capacitor 安卓工程
+├── backend/                      # Spring Boot 后端
+│   ├── src/main/java/com/xkzoom/
+│   │   ├── controller/           # InventoryController / RateCalendarController ...
+│   │   ├── service/
+│   │   ├── mapper/               # MyBatis-Plus mapper
+│   │   └── entity/               # Inventory / RoomType / Property ...
+│   └── src/main/resources/
+│       ├── db/migration/         # Flyway V1__init.sql 等
+│       └── application.yml
+├── docs/
+│   └── phase-plan.md             # 详细阶段规划
+├── public/                       # 静态资源
+├── capacitor.config.ts
+└── package.json
 ```
 
-## 🔄 路由说明
+---
 
-### 用户端
-- `/` - 首页
-- `/features` - 功能特性
-- `/about` - 关于我们
-- `/profile` - 个人中心 (需要登录)
+## 🚀 快速开始
 
-### 管理员端
-- `/admin/login` - 登录
-- `/admin/register` - 注册
-- `/admin/dashboard` - 仪表盘
-- `/admin/user` - 用户管理
-- `/admin/role` - 角色管理
-- `/admin/profile` - 个人信息
+### 环境要求
+- Node.js 18+
+- JDK 17 + Maven 3.8+
+- MySQL 8.0+
 
-## 🎨 设计特色
+### 1️⃣ 启动后端
 
-- **Linear Design 风格** - 简约现代的设计语言
-- **CSS 变量主题** - 深浅色模式无缝切换
-- **毛玻璃效果** - 顶部导航栏使用 backdrop-filter
-- **渐变色搭配** - 紫蓝渐变主题色
-- **安全区域适配** - 适配刘海屏和底部指示条
+```bash
+cd backend
 
-## 📱 移动端适配
+# 首次：复制环境变量模板并配置数据库连接
+cp .env.example .env
 
-- 顶部导航栏菜单自动隐藏
-- 底部固定标签栏导航
-- 内容区域底部预留安全空间
-- 栅格系统自动适配
+# 启动 Spring Boot（Flyway 自动迁移数据库 schema）
+mvn spring-boot:run
 
-## 🔑 认证流程
-
-1. 用户登录后存储 Token 到 localStorage
-2. 路由守卫自动验证 Token 有效性
-3. 根据用户角色分配访问权限
-4.  Token 失效自动清除并重定向登录页
-
-## 📝 环境变量
-
-项目提供两个环境配置文件：
-
-- `.env.development` - 开发环境配置
-- `.env.production` - 生产环境配置
-
-可用环境变量：
-
-```env
-# 应用标题
-VITE_APP_TITLE=CRUD Template
-
-# API 基础地址
-VITE_APP_BASE_API=http://localhost:3000/api
-
-# 是否启用 Mock 数据（纯前端演示请设为 true）
-VITE_APP_MOCK_ENABLED=true
+# 默认监听 http://localhost:8080
 ```
 
-**说明：**
-- 当 `VITE_APP_MOCK_ENABLED=true` 时，所有请求使用本地 Mock 数据，无需后端服务即可运行
-- 打包原生 App 演示时，请确保 `VITE_APP_MOCK_ENABLED=true`
+### 2️⃣ 启动前端
+
+```bash
+# 安装依赖
+npm install
+
+# 启动开发服务器（支持热更新）
+npm run dev
+
+# 默认监听 http://localhost:3000
+```
+
+### 3️⃣ 打包移动端（可选）
+
+```bash
+npm run build          # 构建网页资源
+npx cap sync           # 同步到原生项目
+npx cap open android   # 用 Android Studio 打开
+```
+
+### 🔑 默认账号
+
+| 角色 | 账号 | 密码 |
+| --- | --- | --- |
+| 系统管理员 | `admin` | `admin123` |
+
+---
+
+## 🗺️ 开发路线
+
+| Phase | 主题 | 状态 |
+| --- | --- | --- |
+| **Phase 1** | 业务抽象 + OTA 适配层骨架 | ✅ 已完成 |
+| **Phase 2** | 管理端核心模块（库存房态 / 房价管理） | 🚧 进行中 |
+| **Phase 3** | OTA 适配器实现（5 平台） | 📅 待开始 |
+| **Phase 4** | 财务对账 + 营业报表 | 📅 待开始 |
+| **Phase 5** | 移动端优化 + 报表导出 | 📅 待开始 |
+
+详细规划：[docs/phase-plan.md](docs/phase-plan.md)
+
+---
+
+## 🔄 OTA 平台接入
+
+| 平台 | 协议 | Phase |
+| --- | --- | --- |
+| 携程 Ctrip | PMS API | Phase 3 |
+| 飞猪 Fliggy | OpenAPI | Phase 3 |
+| 美团 Meituan | PMS | Phase 3 |
+| 抖音 Douyin | OpenAPI | Phase 3 |
+| 淘宝 Taobao | OpenAPI | Phase 3 |
+
+`src/channels/` 提供统一 `ChannelAdapter` 接口，Phase 3 接入时各平台实现具体 API。
+
+---
 
 ## 🤝 贡献
 
-欢迎提交 Issue 和 Pull Request！
+欢迎提交 Issue 和 Pull Request。
 
 ## 📄 许可证
 
 MIT License
-
----
-
-觉得有用别忘了点个 Star ⭐️
