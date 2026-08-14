@@ -1,12 +1,24 @@
 /**
- * 房价管理 - Mock Service
+ * 房价管理 - API 客户端
  *
- * 设计目的：
- * - Phase 2 房价管理 MVP 不接真实后端，纯前端演示用。
- * - 数据全部落到 localStorage（key: pms_rate_v1），刷新页面后保留。
- * - 类型与 @/types/domain/rate.ts 对齐（ZOOM 已 commit 的 HEAD 版本）。
+ * Phase 2.5（本 commit）：
+ * - listRoomTypes / queryRateCalendar / upsertDailyRate / deleteDailyRate(恢复基础价) /
+ *   batchUpdateRates 已切到真实后端（http://localhost:8090/api/*，由 Vite 代理）
+ * - listRatePlansByRoomType / createRatePlan / updateRatePlan / deleteRatePlan 仍为
+ *   前端 localStorage 持久化（Phase 2 收尾保留；前端 9 种 strategy 字段与后端
+ *   RatePlan 实体未对齐，留待 Phase 3+ OTA 接入时一并解决）
  *
- * 金额单位：分（cents）；UI 显示时除以 100，提交时乘以 100。
+ * 金额单位：前端 types 存 cents（amount=88800=888.00元）；后端 rate_calendar.price
+ * 为 BigDecimal 元。adapter 层统一 cents↔元 转换。
+ *
+ * 后端基础（参考 RateCalendarController / RoomTypeController）：
+ * - GET  /api/room-types/by-property/{propertyId} → RoomType[]
+ * - GET  /api/rate-calendar?roomTypeId&from&to[&ratePlanId] → RateCalendar[]
+ * - POST /api/rate-calendar body=RateCalendarUpsertRequest → RateCalendar
+ * - POST /api/rate-calendar/batch body=RateCalendarBatchRequest → Integer
+ *
+ * 缺数据日期兜底：后端 query 不做兜底，前端保留 mock 兜底逻辑（用房型基础价填充缺日期）。
+ * 单日"清除"语义：后端无 DELETE 端点，前端用 upsert 把价格回填基础价来模拟。
  */
 
 import type {
@@ -17,12 +29,53 @@ import type {
   RateCalendar,
   RateCalendarQuery
 } from '@/types/domain/rate'
-import type { ID, DateString } from '@/types/domain/common'
+import type { ID, DateString, Money } from '@/types/domain/common'
 
-// ========== localStorage 键 ==========
-const STORAGE_KEY = 'pms_rate_v1'
+// 重新导出 DailyRate，保持向后兼容（RatePlanManage.vue 从 '@/api/rate' import）
+export type { DailyRate }
 
-// ========== 房型 mock（前端最小子集，不依赖后端 / api.ts） ==========
+// ========== HTTP 工具 ==========
+
+const API_BASE = '/api'
+
+interface ApiEnvelope<T> {
+  code: number
+  message?: string
+  data: T
+}
+
+// eslint-disable-next-line no-undef
+async function http<T>(path: string, init?: RequestInit): Promise<T> {
+  const url = `${API_BASE}${path}`
+  const res = await fetch(url, {
+    ...init,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(init?.headers ?? {})
+    }
+  })
+  if (!res.ok) {
+    const text = await res.text().catch(() => '')
+    throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`)
+  }
+  const body = (await res.json()) as ApiEnvelope<T>
+  if (body && typeof body === 'object' && 'code' in body && body.code !== 0) {
+    throw new Error(body.message ?? `API error code=${body.code}`)
+  }
+  return body.data
+}
+
+// ========== 金额单位转换 ==========
+
+function yuanToCents(yuan: number | string): number {
+  return Math.round(Number(yuan) * 100)
+}
+
+function centsToYuan(cents: number | string): number {
+  return Number(cents) / 100
+}
+
+// ========== RoomType ==========
 
 export interface RoomTypeBrief {
   id: ID
@@ -34,36 +87,96 @@ export interface RoomTypeBrief {
   maxOccupancy: number
 }
 
-const MOCK_ROOM_TYPES: RoomTypeBrief[] = [
-  { id: 1, propertyId: 1, name: '海景大床房', basePrice: 888, maxOccupancy: 2 },
-  { id: 2, propertyId: 1, name: '山景双床房', basePrice: 688, maxOccupancy: 2 },
-  { id: 3, propertyId: 1, name: '家庭亲子套房', basePrice: 1288, maxOccupancy: 4 }
-]
+interface BackendRoomType {
+  id: number
+  propertyId: number
+  name: string
+  /** 后端 BigDecimal JSON 序列化为 number；保留 string 兼容 */
+  basePrice: number | string
+  maxOccupancy: number
+}
 
-// ========== 持久化形状 ==========
+function toRoomTypeBrief(rt: BackendRoomType): RoomTypeBrief {
+  return {
+    id: rt.id,
+    propertyId: rt.propertyId,
+    name: rt.name,
+    basePrice: Number(rt.basePrice),
+    maxOccupancy: rt.maxOccupancy
+  }
+}
+
+/** 列出某物业下的房型（前端默认 propertyId=1）。 */
+export async function listRoomTypes(propertyId: ID = 1): Promise<RoomTypeBrief[]> {
+  const list = await http<BackendRoomType[]>(`/room-types/by-property/${propertyId}`)
+  return list.map(toRoomTypeBrief)
+}
+
+// ========== RateCalendar 转换 ==========
+
+interface BackendRateCalendar {
+  id: number
+  ratePlanId: number
+  roomTypeId: number
+  stayDate: string
+  price: number | string
+  currency: string
+  available: number
+  minNights: number | null
+  remarks: string | null
+  createdAt: string
+  updatedAt: string
+}
+
+function calendarToDaily(c: BackendRateCalendar): DailyRate {
+  return {
+    date: c.stayDate,
+    roomTypeId: c.roomTypeId,
+    ratePlanId: c.ratePlanId,
+    price: { amount: yuanToCents(c.price), currency: (c.currency || 'CNY') as Money['currency'] },
+    overridden: true,
+    overrideReason: c.remarks ?? undefined
+  }
+}
+
+function enumerateDates(startDate: string, endDate: string): string[] {
+  const out: string[] = []
+  const start = new Date(startDate)
+  const end = new Date(endDate)
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return out
+  const cur = new Date(start)
+  while (cur <= end) {
+    const y = cur.getFullYear()
+    const m = String(cur.getMonth() + 1).padStart(2, '0')
+    const d = String(cur.getDate()).padStart(2, '0')
+    out.push(`${y}-${m}-${d}`)
+    cur.setDate(cur.getDate() + 1)
+  }
+  return out
+}
+
+// ========== RatePlan 本地持久化（仅用于保留前端 9 种 strategy 字段） ==========
+
+const RATE_PLAN_STORAGE_KEY = 'pms_rate_v1'
 
 interface PersistShape {
   ratePlans: RatePlan[]
-  dailyRates: DailyRate[]
   nextRatePlanId: number
-  nextDailyRateId: number
 }
 
 function defaultShape(): PersistShape {
-  return { ratePlans: [], dailyRates: [], nextRatePlanId: 1, nextDailyRateId: 1 }
+  return { ratePlans: [], nextRatePlanId: 1 }
 }
 
 function loadShape(): PersistShape {
   if (typeof window === 'undefined' || !window.localStorage) return defaultShape()
   try {
-    const raw = localStorage.getItem(STORAGE_KEY)
+    const raw = localStorage.getItem(RATE_PLAN_STORAGE_KEY)
     if (!raw) return defaultShape()
     const parsed = JSON.parse(raw) as PersistShape
     return {
       ratePlans: parsed.ratePlans ?? [],
-      dailyRates: parsed.dailyRates ?? [],
-      nextRatePlanId: parsed.nextRatePlanId ?? 1,
-      nextDailyRateId: parsed.nextDailyRateId ?? 1
+      nextRatePlanId: parsed.nextRatePlanId ?? 1
     }
   } catch {
     return defaultShape()
@@ -72,20 +185,47 @@ function loadShape(): PersistShape {
 
 function saveShape(s: PersistShape): void {
   if (typeof window === 'undefined' || !window.localStorage) return
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(s))
+  localStorage.setItem(RATE_PLAN_STORAGE_KEY, JSON.stringify(s))
 }
 
-function mockDelay<T>(value: T, ms = 120): Promise<T> {
+function mockDelay<T>(value: T, ms = 80): Promise<T> {
   return new Promise(resolve => setTimeout(() => resolve(value), ms))
 }
 
-// ========== 房型 mock ==========
-
-export async function listRoomTypes(): Promise<RoomTypeBrief[]> {
-  return mockDelay([...MOCK_ROOM_TYPES])
+/**
+ * 拿该房型一个 RatePlan id（用于日历 upsert/batch 必填字段）。
+ * 本地 mock 库若没有匹配 plan，自动建一个默认 plan。
+ */
+async function ensureDefaultPlanId(roomTypeId: ID, propertyId: ID): Promise<ID> {
+  const s = loadShape()
+  let plan = s.ratePlans.find(r => {
+    const scope = r.scope
+    if (scope === 'all') return true
+    if ('roomTypeIds' in scope) return scope.roomTypeIds.some(id => String(id) === String(roomTypeId))
+    return false
+  })
+  if (!plan) {
+    plan = {
+      id: s.nextRatePlanId,
+      propertyId,
+      name: '默认基础价',
+      strategy: 'base',
+      scope: { roomTypeIds: [roomTypeId] },
+      pricingUnit: 'per_night',
+      price: { amount: 88800, currency: 'CNY' },
+      priority: 0,
+      status: 1,
+      createdAt: new Date().toISOString(),
+      updatedAt: new Date().toISOString()
+    }
+    s.ratePlans.push(plan)
+    s.nextRatePlanId += 1
+    saveShape(s)
+  }
+  return plan.id
 }
 
-// ========== RatePlan CRUD ==========
+// ========== RatePlan CRUD（仍 mock） ==========
 
 export async function listRatePlans(params?: {
   propertyId?: ID
@@ -180,21 +320,24 @@ export async function deleteRatePlan(id: ID): Promise<boolean> {
   return mockDelay(s.ratePlans.length < before)
 }
 
-// ========== 价格日历（DailyRate） ==========
+// ========== 日历 API（已切真后端） ==========
 
-/** 返回 RateCalendar（含 rates[]，缺数据日期用房型基础价兜底） */
+/**
+ * 查询某房型某段时间的房价。
+ * 后端不带"缺数据日期兜底"，前端保留 mock 兜底（用房型基础价填充缺日期）。
+ */
 export async function queryRateCalendar(q: RateCalendarQuery): Promise<RateCalendar> {
-  const s = loadShape()
-  const roomTypes = await listRoomTypes()
+  const params = new URLSearchParams({
+    roomTypeId: String(q.roomTypeId ?? ''),
+    from: q.startDate,
+    to: q.endDate
+  })
+  const list = await http<BackendRateCalendar[]>(`/rate-calendar?${params}`)
+  const roomTypes = await listRoomTypes(q.propertyId)
   const rt = roomTypes.find(t => String(t.id) === String(q.roomTypeId))
-  const baseCents = rt ? Math.round(rt.basePrice * 100) : 0
+  const baseCents = rt ? yuanToCents(rt.basePrice) : 0
 
-  const filtered = s.dailyRates.filter(d =>
-    String(d.roomTypeId) === String(q.roomTypeId) &&
-    d.date >= q.startDate &&
-    d.date <= q.endDate
-  )
-
+  const filtered = list.map(calendarToDaily)
   const existSet = new Set(filtered.map(d => d.date))
   const out: DailyRate[] = [...filtered]
   const days = enumerateDates(q.startDate, q.endDate)
@@ -202,117 +345,81 @@ export async function queryRateCalendar(q: RateCalendarQuery): Promise<RateCalen
     if (!existSet.has(date)) {
       out.push({
         date,
-        roomTypeId: q.roomTypeId,
+        roomTypeId: q.roomTypeId as ID,
         price: { amount: baseCents, currency: 'CNY' },
         overridden: false
       })
     }
   }
   out.sort((a, b) => (a.date < b.date ? -1 : 1))
-
-  return mockDelay({
+  return {
     propertyId: q.propertyId,
     roomTypeId: q.roomTypeId as ID,
     rates: out
-  })
+  }
 }
 
-/** 单日 upsert：按 (roomTypeId, date) 唯一 */
+/** 单日 upsert：自动保证有 ratePlanId。 */
 export async function upsertDailyRate(payload: DailyRateUpdate): Promise<DailyRate> {
-  const s = loadShape()
-  const idx = s.dailyRates.findIndex(d =>
-    String(d.roomTypeId) === String(payload.roomTypeId) && d.date === payload.date
-  )
-  if (idx >= 0) {
-    const cur = s.dailyRates[idx]
-    const next: DailyRate = {
-      ...cur,
-      price: payload.price,
-      overridden: true,
-      overrideReason: payload.overrideReason ?? cur.overrideReason
-    }
-    s.dailyRates[idx] = next
-    saveShape(s)
-    return mockDelay(next)
-  }
-  const dr: DailyRate = {
-    date: payload.date,
+  const ratePlanId = await ensureDefaultPlanId(payload.roomTypeId, 1)
+  const body = {
+    ratePlanId,
     roomTypeId: payload.roomTypeId,
-    price: payload.price,
-    overridden: true,
-    overrideReason: payload.overrideReason
+    stayDate: payload.date,
+    price: centsToYuan(payload.price.amount),
+    currency: payload.price.currency || 'CNY',
+    available: 1,
+    remarks: payload.overrideReason ?? null
   }
-  s.dailyRates.push(dr)
-  s.nextDailyRateId += 1
-  saveShape(s)
-  return mockDelay(dr)
-}
-
-/** 单日清除（删除覆盖价） */
-export async function deleteDailyRate(roomTypeId: ID, date: DateString): Promise<boolean> {
-  const s = loadShape()
-  const before = s.dailyRates.length
-  s.dailyRates = s.dailyRates.filter(d =>
-    !(String(d.roomTypeId) === String(roomTypeId) && d.date === date)
-  )
-  saveShape(s)
-  return mockDelay(s.dailyRates.length < before)
+  const saved = await http<BackendRateCalendar>('/rate-calendar', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
+  return calendarToDaily(saved)
 }
 
 /**
- * 批量调价：覆盖范围内的所有日期为目标价格。
- * 如 skipOverridden=true，则跳过人工已覆盖的日期。
+ * 单日"清除"：后端无 DELETE 端点，模拟语义为"恢复基础价"。
+ * 视觉上等价于原 mock —— 日历格看到基础价，备注标记"已清除"。
+ */
+export async function deleteDailyRate(roomTypeId: ID, date: DateString): Promise<boolean> {
+  const roomTypes = await listRoomTypes(1)
+  const rt = roomTypes.find(t => String(t.id) === String(roomTypeId))
+  const baseCents = rt ? yuanToCents(rt.basePrice) : 0
+  await upsertDailyRate({
+    date,
+    roomTypeId,
+    price: { amount: baseCents, currency: 'CNY' },
+    overrideReason: '已清除'
+  })
+  return true
+}
+
+/**
+ * 批量调价：后端 FIXED 模式，前端 skipOverridden 仅作为备注标记
+ * （后端 FIXED 模式会覆盖所有日期，包括人工已覆盖的；如需真正跳过，
+ * 需要后端补 SKIP_OVERRIDDEN 模式 —— 留给 Phase 3+）。
  */
 export async function batchUpdateRates(payload: DailyRateBatchUpdate): Promise<number> {
-  const s = loadShape()
-  const dates = enumerateDates(payload.startDate, payload.endDate)
-  let count = 0
-  for (const date of dates) {
-    const idx = s.dailyRates.findIndex(d =>
-      String(d.roomTypeId) === String(payload.roomTypeId) && d.date === date
-    )
-    if (idx >= 0) {
-      if (payload.skipOverridden && s.dailyRates[idx].overridden) continue
-      s.dailyRates[idx] = {
-        ...s.dailyRates[idx],
-        price: payload.price
-      }
-      count += 1
-    } else {
-      s.dailyRates.push({
-        date,
-        roomTypeId: payload.roomTypeId,
-        price: payload.price,
-        overridden: false
-      })
-      count += 1
-    }
+  const ratePlanId = await ensureDefaultPlanId(payload.roomTypeId, 1)
+  const body = {
+    ratePlanId,
+    roomTypeId: payload.roomTypeId,
+    fromDate: payload.startDate,
+    toDate: payload.endDate,
+    mode: 'FIXED',
+    value: centsToYuan(payload.price.amount),
+    closeRoom: false,
+    remarks: payload.skipOverridden ? 'frontend:跳过已覆盖' : 'frontend:批量覆盖'
   }
-  s.nextDailyRateId += count
-  saveShape(s)
-  return mockDelay(count)
+  return await http<number>('/rate-calendar/batch', {
+    method: 'POST',
+    body: JSON.stringify(body)
+  })
 }
 
-// ========== 工具 ==========
-
-function enumerateDates(startDate: string, endDate: string): string[] {
-  const out: string[] = []
-  const start = new Date(startDate)
-  const end = new Date(endDate)
-  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || start > end) return out
-  const cur = new Date(start)
-  while (cur <= end) {
-    const y = cur.getFullYear()
-    const m = String(cur.getMonth() + 1).padStart(2, '0')
-    const d = String(cur.getDate()).padStart(2, '0')
-    out.push(`${y}-${m}-${d}`)
-    cur.setDate(cur.getDate() + 1)
-  }
-  return out
-}
-
-/** 清空本地数据（开发自测用） */
+/** 清空本地 RatePlan 数据（开发自测用）。 */
 export function _resetRateMock(): void {
   if (typeof window === 'undefined' || !window.localStorage) return
-  localStorage.removeItem(STORAGE_KEY)
+  localStorage.removeItem(RATE_PLAN_STORAGE_KEY)
 }
