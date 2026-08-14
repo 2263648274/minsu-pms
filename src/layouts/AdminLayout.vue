@@ -19,7 +19,7 @@
         active-text-color="var(--primary-color)"
       >
         <template v-for="menuRoute in menuRoutes" :key="menuRoute.path">
-          <el-sub-menu v-if="menuRoute.children && menuRoute.children.length" :index="menuRoute.path">
+          <el-sub-menu v-if="menuRoute.children && menuRoute.children.length" :index="`/admin/${menuRoute.path}`">
             <template #title>
               <el-icon><component :is="menuRoute.meta?.icon" /></el-icon>
               <span>{{ menuRoute.meta?.title }}</span>
@@ -27,13 +27,13 @@
             <el-menu-item
               v-for="child in menuRoute.children"
               :key="child.path"
-              :index="`${menuRoute.path}/${child.path}`"
+              :index="`/admin/${menuRoute.path}/${child.path}`"
             >
               <el-icon><component :is="child.meta?.icon" /></el-icon>
               <span>{{ child.meta?.title }}</span>
             </el-menu-item>
           </el-sub-menu>
-          <el-menu-item v-else :index="menuRoute.path">
+          <el-menu-item v-else :index="`/admin/${menuRoute.path}`">
             <el-icon><component :is="menuRoute.meta?.icon" /></el-icon>
             <span>{{ menuRoute.meta?.title }}</span>
           </el-menu-item>

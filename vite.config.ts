@@ -10,14 +10,15 @@ export default defineConfig({
     }
   },
   server: {
-    port: 3000,
+    port: 5173,
+    strictPort: true,
     open: true,
     proxy: {
       '/api': {
-        target: 'http://localhost:8080',
+        target: 'http://localhost:8090',
         changeOrigin: true,
         configure: (proxy) => {
-          proxy.on('proxyReq', (proxyReq, req) => {
+          proxy.on('proxyReq', (proxyReq) => {
             // 去掉 Origin 头，避免后端 CORS 过滤器拦截
             proxyReq.setHeader('origin', '')
             proxyReq.removeHeader('origin')
