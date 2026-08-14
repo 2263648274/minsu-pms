@@ -667,3 +667,168 @@ export const batchUpsertRate = async (data: {
   })
   return { count: res || 0 }
 }
+
+// ========== 物业（Property） — Phase 2 ==========
+
+/** 物业精简视图（前端展示用） */
+export interface PropertyView {
+  id: number
+  name: string
+  code: string
+  type: string
+  status: string
+  city: string
+  address: string
+  phone?: string
+  email?: string
+  checkInTime?: string
+  checkOutTime?: string
+  description?: string
+}
+
+/** 物业分页查询 */
+export const getPropertyPage = async (params: {
+  current?: number
+  size?: number
+  keyword?: string
+}): Promise<PageResult<PropertyView>> => {
+  const res = await request<BackendPage<any>>({
+    url: '/properties',
+    method: 'get',
+    params: {
+      current: params.current || 1,
+      size: params.size || 20,
+      keyword: params.keyword
+    }
+  })
+  return adaptPage(res, (p: any) => ({
+    id: p.id,
+    name: p.name || '',
+    code: p.code || '',
+    type: p.type || 'minsu',
+    status: p.status || 'active',
+    city: p.city || '',
+    address: p.address || '',
+    phone: p.phone,
+    email: p.email,
+    checkInTime: p.checkInTime,
+    checkOutTime: p.checkOutTime,
+    description: p.description
+  }))
+}
+
+/** 物业全量列表（下拉用） */
+export const getPropertyAll = async (): Promise<PropertyView[]> => {
+  const res = await request<PropertyView[]>({
+    url: '/properties/all',
+    method: 'get'
+  })
+  return res || []
+}
+
+/** 物业详情 */
+export const getPropertyDetail = async (id: number): Promise<PropertyView> => {
+  return await request<PropertyView>({
+    url: `/properties/${id}`,
+    method: 'get'
+  })
+}
+
+/** 创建物业 */
+export const createProperty = async (data: Partial<PropertyView>): Promise<{ id: number }> => {
+  const res = await request<any>({
+    url: '/properties',
+    method: 'post',
+    data
+  })
+  return { id: res.id }
+}
+
+/** 更新物业 */
+export const updateProperty = async (id: number, data: Partial<PropertyView>): Promise<boolean> => {
+  await request({
+    url: `/properties/${id}`,
+    method: 'put',
+    data
+  })
+  return true
+}
+
+/** 删除物业 */
+export const deleteProperty = async (id: number): Promise<boolean> => {
+  await request({ url: `/properties/${id}`, method: 'delete' })
+  return true
+}
+
+// ========== OTA 渠道（Channel） — Phase 2 ==========
+
+/** 渠道后端视图 */
+export interface ChannelView {
+  id: number
+  code: string
+  name: string
+  enabled: number
+  lastStatus: string
+  lastError?: string
+  lastSyncAt?: string
+  credentials?: Record<string, string>
+}
+
+/** 渠道全量列表 */
+export const getChannelList = async (): Promise<ChannelView[]> => {
+  const res = await request<ChannelView[]>({
+    url: '/channels',
+    method: 'get'
+  })
+  return res || []
+}
+
+/** 渠道详情 */
+export const getChannelDetail = async (id: number): Promise<ChannelView> => {
+  return await request<ChannelView>({
+    url: `/channels/${id}`,
+    method: 'get'
+  })
+}
+
+/** 创建渠道 */
+export const createChannel = async (data: Partial<ChannelView>): Promise<{ id: number }> => {
+  const res = await request<any>({
+    url: '/channels',
+    method: 'post',
+    data
+  })
+  return { id: res.id }
+}
+
+/** 更新渠道 */
+export const updateChannel = async (id: number, data: Partial<ChannelView>): Promise<boolean> => {
+  await request({
+    url: `/channels/${id}`,
+    method: 'put',
+    data
+  })
+  return true
+}
+
+/** 删除渠道 */
+export const deleteChannel = async (id: number): Promise<boolean> => {
+  await request({ url: `/channels/${id}`, method: 'delete' })
+  return true
+}
+
+/** 渠道连接检测（ping） */
+export const pingChannel = async (id: number): Promise<{
+  channelId: number
+  code: string
+  name: string
+  status: string
+  durationMs: number
+  checkedAt: string
+  error?: string
+}> => {
+  return await request<any>({
+    url: `/channels/${id}/ping`,
+    method: 'post'
+  })
+}

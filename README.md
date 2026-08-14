@@ -19,15 +19,16 @@
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
 | 仪表盘 | ✅ | 今日营收 / 入住率 / 房态概览 |
-| 房源管理 | ✅ | 物业 / 房型 / 房间三级管理 |
+| 房源管理 | ✅ Phase 2 | 物业 CRUD + 房型 / 房间 / 图集 / 入住政策；接入后端 `/api/properties`（CRUD + 分页查询） |
 | **库存房态** | ✅ Phase 2 | 30/60/90 天日历，可视化关房 / 限量 |
 | **房价管理** | ✅ Phase 2（基础价日历 MVP） | 房价计划 CRUD + 房型 × 日期 价格日历，支持单日改价 / 批量调价（FIXED / PERCENT_OFF / INCREASE / 批量关房），mock 数据持久化到 localStorage |
 | — | — | *MVP 仅覆盖基础价；节假日 / 渠道 / 会员 / 连住优惠等扩展策略为 Phase 3+ 预留* |
 | 订单管理 | ✅ | 多平台订单聚合与入住核验 |
 | 客人管理 | ✅ | 客户档案 / VIP 等级 / 入住历史 |
-| OTA 渠道 | 📅 Phase 3 | 携程 / 飞猪 / 美团 / 抖音 / 淘宝 一键上架 |
-| 财务对账 | 📅 Phase 4 | 多平台结算单核对 |
-| 营业报表 | 📅 Phase 4 | 营收 / ADR / RevPAR 可视化 |
+| OTA 渠道 | ✅ Phase 2（配置） | 携程 / 飞猪 / 美团 / 抖音 / 淘宝 渠道 CRUD + 启停 + 连接检测 ping；接入后端 `/api/channels`。真实 OTA API 调用留给 Phase 3 |
+| 渠道同步日志 | ✅ Phase 2 | 5 类操作（inventory_push / rate_push / order_pull / order_confirm / order_cancel）+ 5 种状态 + 触发方式；后端无 ChannelSyncController 时走前端 localStorage 持久化 |
+| 财务对账 | ⚠️ Phase 2（mock 演示） | 按渠道聚合结算 + 订单级明细 + CSV 导出；前端 mock 数据，**后端暂无 FinanceController**，Phase 4 接入真实 OTA 结算单 API |
+| 营业报表 | ⚠️ Phase 2（mock 演示） | 4 项 KPI（营收 / 订单 / 间夜 / 入住率）+ 每日趋势图 + 渠道 / 房型贡献占比 + 同期对比；前端 mock 数据，**后端暂无 ReportController**，Phase 4 接入真实聚合 SQL |
 
 ---
 
