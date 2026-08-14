@@ -44,8 +44,9 @@ jobs:
           sed -i 's|registry\.npmmirror\.com|registry.npmjs.org|g' package-lock.json
           npm ci --legacy-peer-deps --no-audit --no-fund
 
-      # 跳过 Type-check：项目用单一 tsconfig.json，vite build 已包含类型检查
-      # 跳过 Lint：项目根暂无 .eslintrc 配置文件，留着会失败（且 ESLint v9 flat config 需 .mjs/eslint.config.js）
+      # lint：flat config（eslint.config.js），警告不拦 CI（--max-warnings 未设）
+      - name: Lint
+        run: npm run lint
 
       - name: Build
         run: npm run build

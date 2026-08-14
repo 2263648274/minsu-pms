@@ -182,7 +182,7 @@
 import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, Document } from '@element-plus/icons-vue'
-import { channelList, type ChannelMeta } from '@/channels/adapters/registry'
+import { channelList } from '@/channels/adapters/registry'
 import {
   mockGetChannelSyncLogs,
   mockAppendSyncLog

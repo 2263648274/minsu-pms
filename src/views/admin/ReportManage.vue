@@ -189,7 +189,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Download, Warning, TrendCharts, CaretTop, CaretBottom } from '@element-plus/icons-vue'
-import { channelList, type ChannelMeta } from '@/channels/adapters/registry'
+import { channelList } from '@/channels/adapters/registry'
 
 // ========== 类型 ==========
 

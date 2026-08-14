@@ -249,7 +249,6 @@ async function loadCalendar() {
     // 补齐缺失日期（默认值）
     const map = new Map(data.map(d => [d.stayDate, d]))
     const out: InventoryDay[] = []
-    const rt = currentRoomType.value
     for (let i = 0; i < dateRange.value; i++) {
       const d = formatYMD(addDays(new Date(), i))
       if (map.has(d)) {

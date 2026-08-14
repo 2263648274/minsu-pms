@@ -230,7 +230,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, onMounted, computed } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Search, Refresh, Plus } from '@element-plus/icons-vue'
 import {
@@ -339,7 +339,7 @@ const formRules: FormRules = {
     {
       validator: (_rule, value: string, cb) => {
         if (!value) return cb()
-        if (!/^[\d\-\+\s]{6,20}$/.test(value)) return cb(new Error('电话格式不正确'))
+        if (!/^[\d\-+\s]{6,20}$/.test(value)) return cb(new Error('电话格式不正确'))
         cb()
       },
       trigger: 'blur'
