@@ -184,16 +184,17 @@ import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, Document } from '@element-plus/icons-vue'
 import { channelList } from '@/channels/adapters/registry'
 import {
-  mockGetChannelSyncLogs,
-  mockAppendSyncLog
-} from '@/services/mock'
+  listSyncLogs,
+  createSyncLog,
+  getSyncLogStats
+} from '@/services/api'
 import type {
   ChannelSyncLog,
   ChannelId,
   SyncLogType,
   SyncLogStatus
 } from '@/types/domain/channel'
-import type { PageResult, ISODateTime } from '@/types/domain/common'
+import type { PageResult } from '@/types/domain/common'
 
 // ========== 常量 ==========
 
@@ -261,9 +262,16 @@ const detail = reactive({
 
 // ========== 计算属性 ==========
 
+const stats = ref<{ total: number; success: number; error: number; skip: number; successRate: number; avgDurationMs: number } | null>(null)
+
 const successRate = computed(() => {
+  // 优先用后端聚合统计；后端 0 条返回 successRate=0（前端保留 -1 表示"无数据"语义）
+  if (stats.value) {
+    if (stats.value.total === 0) return -1
+    return stats.value.successRate
+  }
   if (total.value === 0) return -1
-  // 当前页内 success / total 比率（前端粗估，正式实现走 channelService.getChannelStats）
+  // 兜底：当前页内 success / total 比率（前端粗估）
   const succ = rows.value.filter(r => r.status === 'success').length
   return succ / rows.value.length
 })
@@ -273,7 +281,7 @@ const successRate = computed(() => {
 const loadRows = async () => {
   loading.value = true
   try {
-    const res: PageResult<ChannelSyncLog> = mockGetChannelSyncLogs({
+    const res: PageResult<ChannelSyncLog> = await listSyncLogs({
       channelId: filters.channelId || undefined,
       type: filters.type || undefined,
       status: filters.status || undefined,
@@ -282,7 +290,7 @@ const loadRows = async () => {
       page: pagination.current,
       pageSize: pagination.size
     })
-    // trigger 是前端筛选（mockGetChannelSyncLogs 不支持）
+    // trigger 是前端筛选（DB schema 无 trigger 字段，listSyncLogs 不支持）
     let data = res.list
     if (filters.trigger) data = data.filter(r => r.trigger === filters.trigger)
     rows.value = data
@@ -292,6 +300,19 @@ const loadRows = async () => {
     console.error(e)
   } finally {
     loading.value = false
+  }
+}
+
+const loadStats = async () => {
+  try {
+    stats.value = await getSyncLogStats({
+      channelId: (filters.channelId || undefined) as ChannelId | undefined,
+      startDate: filters.dateRange[0] || undefined,
+      endDate: filters.dateRange[1] || undefined
+    })
+  } catch (e) {
+    console.warn('load sync log stats failed', e)
+    stats.value = null
   }
 }
 
@@ -310,9 +331,9 @@ const onReset = () => {
   loadRows()
 }
 
-// ========== 模拟一次推送（Phase 2 mock 演练用） ==========
+// ========== 模拟一次推送（POST /api/sync-logs；Phase 2 调试用） ==========
 
-const simulateSync = () => {
+const simulateSync = async () => {
   const channels: ChannelId[] = channelList.map(c => c.id)
   if (channels.length === 0) {
     ElMessage.warning('未配置任何渠道')
@@ -322,20 +343,23 @@ const simulateSync = () => {
   const types: SyncLogType[] = ['inventory_push', 'rate_push', 'order_pull']
   const type = types[Math.floor(Math.random() * types.length)]
   const ok = Math.random() > 0.3
-  const log: ChannelSyncLog = {
-    id: `sl-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
-    channelId,
-    type,
-    status: ok ? 'success' : 'failed',
-    trigger: 'manual',
-    durationMs: Math.floor(Math.random() * 800) + 50,
-    errorMessage: ok ? undefined : '模拟连接超时（mock）',
-    response: ok ? { ok: true, action: type, ts: Date.now() } : undefined,
-    createdAt: new Date().toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
+  try {
+    await createSyncLog({
+      channelId,
+      type,
+      status: ok ? 'success' : 'failed',
+      durationMs: Math.floor(Math.random() * 800) + 50,
+      errorMessage: ok ? undefined : '模拟连接超时（前端调试）',
+      response: ok ? { ok: true, action: type, ts: Date.now() } : undefined,
+      trigger: 'manual'
+    })
+    ElMessage.success(`已模拟${TYPE_LABEL[type]}（${ok ? '成功' : '失败'}）`)
+    await loadRows()
+    loadStats()
+  } catch (e) {
+    ElMessage.error('写入同步日志失败')
+    console.error(e)
   }
-  mockAppendSyncLog(log)
-  ElMessage.success(`已模拟${TYPE_LABEL[type]}（${ok ? '成功' : '失败'}）`)
-  loadRows()
 }
 
 // ========== 详情 ==========
@@ -381,71 +405,9 @@ const formatTime = (iso?: string) => {
 }
 
 onMounted(() => {
-  // 首次加载：若没有 mock 数据，主动播种几条演示日志
-  seedDemoLogsIfEmpty()
   loadRows()
+  loadStats()
 })
-
-const seedDemoLogsIfEmpty = () => {
-  const cur = mockGetChannelSyncLogs({ page: 1, pageSize: 1 })
-  if (cur.total > 0) return
-  const now = Date.now()
-  const demo: ChannelSyncLog[] = [
-    {
-      id: `sl-${now - 60000}-01`,
-      channelId: 'ctrip',
-      type: 'inventory_push',
-      status: 'success',
-      trigger: 'manual',
-      durationMs: 312,
-      response: { pushedDates: 14, ok: true },
-      createdAt: new Date(now - 60000).toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
-    },
-    {
-      id: `sl-${now - 120000}-02`,
-      channelId: 'fliggy',
-      type: 'rate_push',
-      status: 'success',
-      trigger: 'auto',
-      durationMs: 245,
-      response: { pushedDates: 7, ok: true },
-      createdAt: new Date(now - 120000).toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
-    },
-    {
-      id: `sl-${now - 180000}-03`,
-      channelId: 'meituan',
-      type: 'order_pull',
-      status: 'failed',
-      trigger: 'manual',
-      durationMs: 1240,
-      errorMessage: 'HTTP 500: 美团 PMS 网关超时',
-      errorStack: 'com.xkzoom.pms.exception.BusinessException: ...\n\tat ChannelAdapter.meituan.pullOrders(...)',
-      createdAt: new Date(now - 180000).toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
-    },
-    {
-      id: `sl-${now - 300000}-04`,
-      channelId: 'douyin',
-      type: 'inventory_push',
-      status: 'partial',
-      trigger: 'auto',
-      durationMs: 856,
-      response: { pushedDates: 10, failedDates: 2 },
-      errorMessage: '2 天推送失败（库存为零）',
-      createdAt: new Date(now - 300000).toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
-    },
-    {
-      id: `sl-${now - 600000}-05`,
-      channelId: 'taobao',
-      type: 'order_confirm',
-      status: 'success',
-      trigger: 'webhook',
-      durationMs: 156,
-      response: { orderId: 'TB-20260814-0001', confirmed: true },
-      createdAt: new Date(now - 600000).toISOString().slice(0, 19).replace('T', ' ') as ISODateTime
-    }
-  ]
-  demo.forEach(d => mockAppendSyncLog(d))
-}
 
 // channelList 已在模板里直接引用，无需 void 占位
 </script>

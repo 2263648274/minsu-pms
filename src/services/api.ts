@@ -27,6 +27,14 @@ import type {
   CustomerListParams,
   DashboardStats
 } from '@/types'
+import type { ID } from '@/types/domain/common'
+import type {
+  ChannelId,
+  SyncLogType,
+  SyncLogStatus,
+  ChannelSyncLog,
+  ChannelSyncLogParams
+} from '@/types/domain/channel'
 
 // 后端 MyBatis-Plus 分页结构
 interface BackendPage<T> {
@@ -877,5 +885,164 @@ export const pingChannel = async (id: number): Promise<{
   return await request<any>({
     url: `/channels/${id}/ping`,
     method: 'post'
+  })
+}
+
+// ========== OTA 同步日志（SyncLog） — Phase 2 接 OtaSyncLogController ==========
+// 后端表 ota_sync_log：channelId(Long) / operation(VARCHAR) / status(VARCHAR) / request(TEXT) /
+//   response(TEXT) / errorMsg / durationMs / occurredAt
+// 前端 ChannelSyncLog：channelId(ChannelId 字符串枚举) / type / status / request/response 对象 / trigger / createdAt
+
+/**
+ * 渠道名 ↔ Long ID 映射（与 V900__seed_data.sql 对齐：
+ *   1=CTRIP 2=MEITUAN 3=FLIGGY 4=BOOKING 5=AIRBNB；前端 ChannelId 只有 ctrip/meituan/fliggy/douyin/taobao，
+ *   其中 douyin/taobao 在 DB 里暂对应 4/5，Phase 4 真接入时按 channel.code 重新对齐）
+ */
+const CHANNEL_NAME_TO_ID: Record<ChannelId, number> = {
+  ctrip: 1,
+  meituan: 2,
+  fliggy: 3,
+  douyin: 4,
+  taobao: 5
+}
+
+const CHANNEL_ID_TO_NAME: Record<number, ChannelId> = {
+  1: 'ctrip',
+  2: 'meituan',
+  3: 'fliggy',
+  4: 'douyin',
+  5: 'taobao'
+}
+
+/** 前端 SyncLogType ↔ 后端 operation */
+const OPERATION_TO_BACKEND: Record<SyncLogType, string> = {
+  inventory_push: 'PUSH_AVAIL',
+  rate_push: 'PUSH_RATE',
+  order_pull: 'FETCH_BOOKING',
+  order_confirm: 'PUSH_BOOKING',
+  order_cancel: 'PUSH_BOOKING'
+}
+
+const OPERATION_FROM_BACKEND: Record<string, SyncLogType> = {
+  PUSH_AVAIL: 'inventory_push',
+  PUSH_RATE: 'rate_push',
+  FETCH_BOOKING: 'order_pull',
+  PUSH_BOOKING: 'order_confirm'
+}
+
+/** 前端 SyncLogStatus ↔ 后端 OK/ERROR/SKIP */
+const STATUS_TO_BACKEND: Record<SyncLogStatus, string> = {
+  success: 'OK',
+  failed: 'ERROR',
+  partial: 'SKIP',
+  pending: 'SKIP',
+  running: 'SKIP'
+}
+
+const STATUS_FROM_BACKEND: Record<string, SyncLogStatus> = {
+  OK: 'success',
+  ERROR: 'failed',
+  SKIP: 'partial'
+}
+
+function parseJsonField<T = Record<string, unknown>>(raw?: string | null): T | undefined {
+  if (!raw) return undefined
+  try { return JSON.parse(raw) as T } catch { return undefined }
+}
+
+function stringifyJsonField(value?: Record<string, unknown>): string | undefined {
+  if (value === undefined || value === null) return undefined
+  try { return JSON.stringify(value) } catch { return undefined }
+}
+
+/** 后端 OtaSyncLog → 前端 ChannelSyncLog */
+function mapSyncLog(raw: any): ChannelSyncLog {
+  return {
+    id: raw.id,
+    channelId: CHANNEL_ID_TO_NAME[raw.channelId] || ('unknown' as ChannelId),
+    type: OPERATION_FROM_BACKEND[raw.operation] || 'inventory_push',
+    status: STATUS_FROM_BACKEND[raw.status] || 'success',
+    request: parseJsonField(raw.request),
+    response: parseJsonField(raw.response),
+    errorMessage: raw.errorMsg || undefined,
+    durationMs: raw.durationMs ?? undefined,
+    trigger: 'auto', // DB schema 无 trigger 字段，前端展示兜底为 'auto'（trigger 仅前端筛选用）
+    createdAt: raw.occurredAt
+  }
+}
+
+/** 分页查询同步日志 */
+export const listSyncLogs = async (params: ChannelSyncLogParams): Promise<PageResult<ChannelSyncLog>> => {
+  const res = await request<BackendPage<any>>({
+    url: '/sync-logs',
+    method: 'get',
+    params: {
+      channelId: params.channelId ? CHANNEL_NAME_TO_ID[params.channelId] : undefined,
+      operation: params.type ? OPERATION_TO_BACKEND[params.type] : undefined,
+      status: params.status ? STATUS_TO_BACKEND[params.status] : undefined,
+      from: params.startDate,
+      to: params.endDate,
+      current: params.page || 1,
+      size: params.pageSize || 20
+    }
+  })
+  const records = res.records || []
+  return {
+    list: records.map(mapSyncLog),
+    total: Number(res.total || 0),
+    page: Number(res.current || 1),
+    pageSize: Number(res.size || 20)
+  }
+}
+
+/** 同步日志详情 */
+export const getSyncLog = async (id: ID): Promise<ChannelSyncLog> => {
+  const res = await request<any>({ url: `/sync-logs/${id}`, method: 'get' })
+  return mapSyncLog(res)
+}
+
+/** 新增同步日志（手动推送 / OTA 适配器回调 / 调试） */
+export const createSyncLog = async (log: Partial<ChannelSyncLog>): Promise<ChannelSyncLog> => {
+  const channelId = log.channelId ? CHANNEL_NAME_TO_ID[log.channelId] : 1
+  const operation = log.type ? OPERATION_TO_BACKEND[log.type] : 'PUSH_AVAIL'
+  const status = log.status ? STATUS_TO_BACKEND[log.status] : 'OK'
+  const res = await request<any>({
+    url: '/sync-logs',
+    method: 'post',
+    data: {
+      channelId,
+      operation,
+      status,
+      request: stringifyJsonField(log.request),
+      response: stringifyJsonField(log.response),
+      errorMsg: log.errorMessage
+    }
+  })
+  return mapSyncLog(res)
+}
+
+/** 同步日志聚合统计 */
+export interface SyncLogStats {
+  total: number
+  success: number
+  error: number
+  skip: number
+  successRate: number
+  avgDurationMs: number
+}
+
+export const getSyncLogStats = async (params: {
+  channelId?: ChannelId
+  startDate?: string
+  endDate?: string
+}): Promise<SyncLogStats> => {
+  return await request<any>({
+    url: '/sync-logs/stats',
+    method: 'get',
+    params: {
+      channelId: params.channelId ? CHANNEL_NAME_TO_ID[params.channelId] : undefined,
+      from: params.startDate,
+      to: params.endDate
+    }
   })
 }
