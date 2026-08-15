@@ -11,7 +11,7 @@
         <div class="hero-actions">
           <el-tag type="warning" effect="plain">
             <el-icon><Warning /></el-icon>
-            <span style="margin-left: 4px">当前后端无报表接口，本页数据为前端聚合演示</span>
+            <span style="margin-left: 4px">数据来自后端报表聚合</span>
           </el-tag>
         </div>
       </div>
@@ -173,7 +173,7 @@
     <el-alert type="warning" :closable="false" show-icon>
       <template #title>数据来源说明</template>
       <div class="alert-content">
-        <p>当前后端 <code>backend/</code> 暂无 ReportController / 报表接口，本页面 KPI、趋势图、渠道贡献均为前端聚合演示数据。</p>
+        <p>本页 KPI、趋势、渠道贡献和房型贡献均来自后端 ReportController。</p>
         <p>Phase 4 实施路径：</p>
         <ul>
           <li>新增 <code>ReportController</code> 暴露 <code>/api/report/overview</code> + <code>/api/report/trend</code> + <code>/api/report/channel-breakdown</code></li>
@@ -190,6 +190,7 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Refresh, Download, Warning, TrendCharts, CaretTop, CaretBottom } from '@element-plus/icons-vue'
 import { channelList } from '@/channels/adapters/registry'
+import reportService from '@/services/report'
 
 // ========== 类型 ==========
 
@@ -234,19 +235,17 @@ const trend = ref<DailyTrend[]>([])
 const channelStats = ref<ChannelStat[]>([])
 const roomTypeStats = ref<RoomTypeStat[]>([])
 const prevKpi = ref<{ revenue: number; orderCount: number } | null>(null)
+const reportKpi = ref<{ revenue: number; orderCount: number; nights: number; adr: number; revpar: number; occupancyRate: number } | null>(null)
 
 // ========== KPI ==========
 
 const kpi = computed<Kpi>(() => {
-  const totalRevenue = trend.value.reduce((s, d) => s + d.revenue, 0)
-  const totalOrders = channelStats.value.reduce((s, c) => s + c.orderCount, 0)
-  const totalNights = Math.round(totalOrders * 2.3)
-  const adr = totalNights > 0 ? totalRevenue / totalNights : 0
-  const totalRooms = 12 // 假设 12 间可售
-  const days = trend.value.length || 1
-  const availableRoomNights = totalRooms * days
-  const revpar = availableRoomNights > 0 ? totalRevenue / availableRoomNights : 0
-  const occupancyRate = totalNights / Math.max(availableRoomNights, 1)
+  const totalRevenue = reportKpi.value?.revenue ?? trend.value.reduce((s, d) => s + d.revenue, 0)
+  const totalOrders = reportKpi.value?.orderCount ?? channelStats.value.reduce((s, c) => s + c.orderCount, 0)
+  const totalNights = reportKpi.value?.nights ?? 0
+  const adr = reportKpi.value?.adr ?? 0
+  const revpar = reportKpi.value?.revpar ?? 0
+  const occupancyRate = reportKpi.value?.occupancyRate ?? 0
   const revenueDiff = prevKpi.value ? (totalRevenue - prevKpi.value.revenue) / Math.max(prevKpi.value.revenue, 1) : 0
   const orderDiff = prevKpi.value ? (totalOrders - prevKpi.value.orderCount) / Math.max(prevKpi.value.orderCount, 1) : 0
   return {
@@ -282,75 +281,26 @@ function dateRange(start: string, end: string): string[] {
   return res
 }
 
-function buildMockData(): void {
+const reload = async () => {
   const today = new Date()
   const defaultEnd = today.toISOString().slice(0, 10)
   const defaultStart = new Date(today.getTime() - 13 * 24 * 3600 * 1000).toISOString().slice(0, 10)
-  const [start, end] = filters.dateRange.length === 2
-    ? filters.dateRange
-    : [defaultStart, defaultEnd]
-
-  const days = dateRange(start, end)
-  trend.value = days.map((date, idx) => {
-    const dow = new Date(date).getDay()
-    const isWeekend = dow === 5 || dow === 6 || dow === 0
-    const baseRevenue = 2000 + Math.floor(Math.random() * 4000)
-    const weekendBoost = isWeekend ? 1.6 : 1
-    const dayBoost = 1 + (Math.sin(idx / 3) * 0.2)
-    return {
-      date,
-      revenue: Math.round(baseRevenue * weekendBoost * dayBoost),
-      occupancy: Math.min(0.4 + Math.random() * 0.55 + (isWeekend ? 0.1 : 0), 0.99)
-    }
-  })
-
-  // 渠道贡献
-  const channelMap = new Map<string, { orderCount: number; revenue: number }>()
-  let totalRevenue = 0
-  SEED_CHANNELS.forEach((ch, i) => {
-    const orderCount = 5 + Math.floor(Math.random() * 20) + i
-    const avgPrice = 600 + Math.floor(Math.random() * 1200)
-    const revenue = orderCount * avgPrice
-    totalRevenue += revenue
-    channelMap.set(ch, { orderCount, revenue })
-  })
-  channelStats.value = Array.from(channelMap.entries()).map(([channelId, v]) => ({
-    channelId,
-    orderCount: v.orderCount,
-    revenue: v.revenue,
-    share: v.revenue / totalRevenue
-  })).sort((a, b) => b.revenue - a.revenue)
-
-  // 房型贡献
-  const rtMap = new Map<string, { orderCount: number; revenue: number }>()
-  let totalRtRevenue = 0
-  SEED_ROOM_TYPES.forEach((name, i) => {
-    const orderCount = 4 + Math.floor(Math.random() * 18) + i
-    const avgPrice = 500 + Math.floor(Math.random() * 1000)
-    const revenue = orderCount * avgPrice
-    totalRtRevenue += revenue
-    rtMap.set(name, { orderCount, revenue })
-  })
-  roomTypeStats.value = Array.from(rtMap.entries()).map(([name, v]) => ({
-    name,
-    orderCount: v.orderCount,
-    revenue: v.revenue,
-    share: v.revenue / totalRtRevenue
-  })).sort((a, b) => b.revenue - a.revenue)
-
-  // 对比上一周期
-  if (filters.compareMode === 'prev') {
-    prevKpi.value = {
-      revenue: Math.round(totalRevenue * (0.85 + Math.random() * 0.3)),
-      orderCount: channelStats.value.reduce((s, c) => s + c.orderCount, 0) - 8 + Math.floor(Math.random() * 16)
-    }
-  } else {
+  const [from, to] = filters.dateRange.length === 2 ? filters.dateRange : [defaultStart, defaultEnd]
+  try {
+    const [overview, trendData, channels, roomTypes] = await Promise.all([
+      reportService.getOverview(from, to),
+      reportService.getTrend(from, to),
+      reportService.getChannelBreakdown(from, to),
+      reportService.getRoomTypeBreakdown(from, to)
+    ])
+    trend.value = trendData
+    channelStats.value = channels
+    roomTypeStats.value = roomTypes
     prevKpi.value = null
+    reportKpi.value = overview
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '报表加载失败')
   }
-}
-
-const reload = () => {
-  buildMockData()
 }
 
 const onReset = () => {

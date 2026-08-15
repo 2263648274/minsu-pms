@@ -11,7 +11,7 @@
         <div class="hero-actions">
           <el-tag type="warning" effect="plain">
             <el-icon><Warning /></el-icon>
-            <span style="margin-left: 4px">当前后端无财务接口，本页数据为前端聚合演示</span>
+            <span style="margin-left: 4px">数据来自后端订单聚合</span>
           </el-tag>
         </div>
       </div>
@@ -187,7 +187,7 @@
     <el-alert type="warning" :closable="false" show-icon>
       <template #title>数据来源说明</template>
       <div class="alert-content">
-        <p>当前后端 <code>backend/</code> 暂无 FinanceController / 结算相关接口，本页面"按渠道聚合"和"订单级明细"均为前端聚合演示数据。</p>
+        <p>本页统计、渠道结算和订单级明细均来自后端 FinanceController，按当前订单状态与入住月份聚合。</p>
         <p>Phase 4 实施路径：</p>
         <ul>
           <li>新增 <code>FinanceSettlement</code> 表 + <code>FinanceController</code> 暴露 <code>/api/finance/settlements</code> + <code>/api/finance/export</code></li>
@@ -200,10 +200,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, reactive, computed, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Download, Warning, Wallet } from '@element-plus/icons-vue'
 import { channelList } from '@/channels/adapters/registry'
+import financeService from '@/services/finance'
 
 // ========== 类型 ==========
 
@@ -246,23 +247,12 @@ const orderSettlements = ref<OrderSettlement[]>([])
 
 // ========== 统计 ==========
 
-const stats = computed(() => {
-  let monthRevenue = 0
-  let monthBase = 0
-  let monthCommission = 0
-  let orderCount = orderSettlements.value.length
-  for (const o of orderSettlements.value) {
-    monthRevenue += o.sellingAmount
-    monthBase += o.baseAmount
-    monthCommission += o.commission
-  }
-  return {
-    monthRevenue,
-    monthBase,
-    monthCommission,
-    monthNet: monthRevenue - monthCommission,
-    orderCount
-  }
+const stats = reactive({
+  monthRevenue: 0,
+  monthBase: 0,
+  monthCommission: 0,
+  monthNet: 0,
+  orderCount: 0
 })
 
 // ========== 数据生成（前端 mock 聚合） ==========
@@ -354,12 +344,24 @@ function buildMockData(): {
 
 const reload = async () => {
   loading.value = true
-  // 模拟异步延迟
-  await new Promise(resolve => setTimeout(resolve, 200))
   try {
-    const { channelSet, orderSet } = buildMockData()
-    channelSettlements.value = channelSet
-    orderSettlements.value = orderSet
+    const [summary, channels, orders] = await Promise.all([
+      financeService.getStats(filters.month),
+      financeService.getChannelSettlements(filters.month),
+      financeService.getOrderSettlements({
+        month: filters.month,
+        channelId: filters.channelId,
+        current: 1,
+        size: 200
+      })
+    ])
+    Object.assign(stats, summary)
+    channelSettlements.value = channels
+    orderSettlements.value = orders.records || []
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '财务数据加载失败')
+    channelSettlements.value = []
+    orderSettlements.value = []
   } finally {
     loading.value = false
   }
