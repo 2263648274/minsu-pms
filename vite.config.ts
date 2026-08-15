@@ -12,6 +12,7 @@ export default defineConfig({
   server: {
     port: 5173,
     strictPort: true,
+    // dev-server restart trigger 2026-08-15 07:22 UTC
     open: true,
     proxy: {
       '/api': {
