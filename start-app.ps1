@@ -1,124 +1,127 @@
-# PMS one-click start (PowerShell, called by start-app.bat)
-# Exit codes: 0 = all OK; 1 = backend failed; 2 = frontend failed; 3 = launcher error
+# PMS launcher.
+# Default mode launches backend/frontend in background and exits immediately.
+# Optional blocking verification: .\start-app.ps1 -Wait
+param(
+    [switch]$Wait
+)
+
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $MyInvocation.MyCommand.Path
+$backendDir = Join-Path $root 'backend'
+$logDir = Join-Path $backendDir 'logs'
+$beOut = Join-Path $logDir 'spring-boot.log'
+$beErr = Join-Path $logDir 'spring-boot.err.log'
+$feOut = Join-Path $root 'frontend.log'
+$feErr = Join-Path $root 'frontend.err.log'
 
-function Fail {
-    param([int]$Code, [string]$Msg)
-    Write-Host "[FAIL] $Msg" -ForegroundColor Red
+function Fail([int]$Code, [string]$Message) {
+    Write-Host "[FAIL] $Message" -ForegroundColor Red
     exit $Code
 }
 
-function Show-LogTail {
-    param([string]$Path, [int]$Lines = 20)
-    if (Test-Path $Path) {
-        Write-Host "--- tail of $Path ---" -ForegroundColor Yellow
-        Get-Content $Path -Tail $Lines -ErrorAction SilentlyContinue | ForEach-Object { Write-Host "  $_" }
-    } else {
-        Write-Host "(log not found: $Path)" -ForegroundColor Yellow
+function Test-TcpPort([int]$Port) {
+    try {
+        $client = New-Object System.Net.Sockets.TcpClient
+        $async = $client.BeginConnect('127.0.0.1', $Port, $null, $null)
+        $ok = $async.AsyncWaitHandle.WaitOne(700, $false)
+        $client.Close()
+        return $ok
+    } catch {
+        return $false
     }
 }
 
-Write-Host "=== PMS Start ==="
-Write-Host ""
+function Test-HttpEndpoint([string]$Url) {
+    try {
+        $request = [System.Net.HttpWebRequest]::Create($Url)
+        $request.Method = 'GET'
+        $request.Timeout = 1500
+        $response = $request.GetResponse()
+        $response.Close()
+        return $true
+    } catch [System.Net.WebException] {
+        if ($_.Exception.Response) {
+            $_.Exception.Response.Close()
+            return $true
+        }
+        return $false
+    } catch {
+        return $false
+    }
+}
 
-# 1. Kill old processes on 8090 / 5173 (dedup PIDs: IPv4+IPv6 rows repeat the same PID)
-Write-Host "[1/4] Kill old processes on 8090 / 5173 ..."
-try {
-    $seen = New-Object 'System.Collections.Generic.HashSet[int]'
-    foreach ($port in @(8090, 5173)) {
-        $conns = netstat -ano | Select-String ":$port" | Select-String "LISTENING"
-        foreach ($line in $conns) {
-            $parts = ($line -replace '\s+', ' ').Trim().Split(' ')
-            $procId = $parts[$parts.Length - 1]
-            if ($procId -match '^\d+$' -and $seen.Add([int]$procId)) {
-                try {
-                    Stop-Process -Id $procId -Force -ErrorAction Stop
-                    Write-Host "    - killed PID $procId (port $port)"
-                } catch {
-                    Write-Host "    - PID $procId already gone (port $port)"
-                }
-            }
+Write-Host '=== PMS Start ==='
+Write-Host '[1/3] Checking MySQL 127.0.0.1:3306 ...'
+if (-not (Test-TcpPort 3306)) {
+    Fail 3 'MySQL is not listening on 127.0.0.1:3306.'
+}
+Write-Host '    MySQL OK' -ForegroundColor Green
+
+Write-Host '[2/3] Stopping old project processes ...'
+$seen = New-Object 'System.Collections.Generic.HashSet[int]'
+foreach ($port in @(8090, 5173)) {
+    $rows = netstat -ano | Select-String ":$port\s+.*LISTENING"
+    foreach ($row in $rows) {
+        $parts = ($row -replace '\s+', ' ').Trim().Split(' ')
+        $procId = $parts[$parts.Length - 1]
+        if ($procId -match '^\d+$' -and $seen.Add([int]$procId)) {
+            Stop-Process -Id ([int]$procId) -Force -ErrorAction SilentlyContinue
+            Write-Host "    stopped PID $procId"
         }
     }
-    if ($seen.Count -eq 0) { Write-Host "    - ports free" }
-} catch {
-    Fail 3 "kill phase crashed: $($_.Exception.Message)"
+}
+if ($seen.Count -eq 0) {
+    Write-Host '    ports already free'
 }
 
-# 2. Start backend (hidden window)
-Write-Host "[2/4] Start backend (Spring Boot 8090) ..."
-$logDir = Join-Path $root 'backend\logs'
-if (!(Test-Path $logDir)) { New-Item -ItemType Directory -Path $logDir | Out-Null }
-$backendDir = Join-Path $root 'backend'
-$beOut = Join-Path $logDir 'spring-boot.log'
-$beErr = Join-Path $logDir 'spring-boot.err.log'
+Write-Host '[3/3] Launching backend and frontend ...'
+if (-not (Test-Path $logDir)) {
+    New-Item -ItemType Directory -Path $logDir -Force | Out-Null
+}
 try {
     $mvn = (Get-Command mvn.cmd -ErrorAction Stop).Source
 } catch {
-    Fail 3 "mvn.cmd not found on PATH"
+    Fail 3 'mvn.cmd was not found in PATH.'
 }
-Start-Process -FilePath $mvn -ArgumentList 'spring-boot:run','-Dspring-boot.run.fork=false' -WorkingDirectory $backendDir -WindowStyle Hidden -RedirectStandardOutput $beOut -RedirectStandardError $beErr | Out-Null
-Write-Host "    - backend launched, log: backend\logs\spring-boot.log"
-
-# 3. Start frontend (hidden window)
-Write-Host "[3/4] Start frontend (Vite 5173) ..."
-$feOut = Join-Path $root 'frontend.log'
-$feErr = Join-Path $root 'frontend.err.log'
 try {
     $npm = (Get-Command npm.cmd -ErrorAction Stop).Source
 } catch {
-    Show-LogTail $beErr; Show-LogTail $beOut
-    Fail 3 "npm.cmd not found on PATH (backend already launched, will keep running)"
+    Fail 3 'npm.cmd was not found in PATH.'
 }
-Start-Process -FilePath $npm -ArgumentList 'run','dev','--','--port','5173' -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $feOut -RedirectStandardError $feErr | Out-Null
-Write-Host "    - frontend launched, log: frontend.log"
 
-# 4. Wait for ports
-Write-Host "[4/4] Wait for ports (up to 120s) ..."
-function Test-Port {
-    param([int]$Port)
-    try {
-        $c = New-Object System.Net.Sockets.TcpClient
-        $i = $c.BeginConnect('127.0.0.1', $Port, $null, $null)
-        $ok = $i.AsyncWaitHandle.WaitOne(500, $false)
-        $c.Close()
-        return $ok
-    } catch { return $false }
+Start-Process -FilePath $mvn -ArgumentList @('spring-boot:run', '-Dspring-boot.run.fork=false', '-Dspring-boot.run.profiles=dev') -WorkingDirectory $backendDir -WindowStyle Hidden -RedirectStandardOutput $beOut -RedirectStandardError $beErr | Out-Null
+Start-Process -FilePath $npm -ArgumentList @('run', 'dev', '--', '--host', '127.0.0.1', '--port', '5173') -WorkingDirectory $root -WindowStyle Hidden -RedirectStandardOutput $feOut -RedirectStandardError $feErr | Out-Null
+
+if (-not $Wait) {
+    Write-Host 'Launched in background. This script exits now.' -ForegroundColor Green
+    Write-Host 'Backend log: backend/logs/spring-boot.log'
+    Write-Host 'Frontend log: frontend.log'
+    Write-Host 'Run .\start-app.ps1 -Wait to verify readiness.'
+    exit 0
 }
+
+Write-Host 'Waiting for readiness (up to 120 seconds) ...'
 $deadline = (Get-Date).AddSeconds(120)
 $backendOk = $false
 $frontendOk = $false
 while ((Get-Date) -lt $deadline) {
-    $backendOk = Test-Port 8090
-    $frontendOk = Test-Port 5173
-    if ($backendOk -and $frontendOk) { break }
+    $backendOk = (Test-TcpPort 8090) -and (Test-HttpEndpoint 'http://127.0.0.1:8090/api/auth/login')
+    $frontendOk = Test-TcpPort 5173
+    if ($backendOk -and $frontendOk) {
+        break
+    }
     Start-Sleep -Seconds 2
 }
 
-$exit = 0
-if ($backendOk) {
-    Write-Host "    - backend 8090 OK" -ForegroundColor Green
-} else {
-    Write-Host "    - backend 8090 TIMEOUT" -ForegroundColor Red
-    Show-LogTail $beErr; Show-LogTail $beOut
-    $exit = 1
+if (-not $backendOk) {
+    Write-Host 'Backend readiness check failed.' -ForegroundColor Red
+    exit 1
 }
-if ($frontendOk) {
-    Write-Host "    - frontend 5173 OK" -ForegroundColor Green
-} else {
-    Write-Host "    - frontend 5173 TIMEOUT" -ForegroundColor Red
-    Show-LogTail $feErr; Show-LogTail $feOut
-    $exit = 2
+if (-not $frontendOk) {
+    Write-Host 'Frontend readiness check failed.' -ForegroundColor Red
+    exit 2
 }
 
-if ($exit -eq 0) {
-    Write-Host ""
-    Write-Host "=== Done ==="
-    Write-Host "  Frontend: http://localhost:5173"
-    Write-Host "  Backend:  http://localhost:8090"
-    Write-Host "  Login:    admin / admin123"
-    Write-Host ""
-    Write-Host "Stop: run stop-app.bat"
-}
-exit $exit
+Write-Host 'Backend HTTP 8090 OK' -ForegroundColor Green
+Write-Host 'Frontend TCP 5173 OK' -ForegroundColor Green
+exit 0
