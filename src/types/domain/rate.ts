@@ -44,6 +44,8 @@ export interface RatePlan {
   weekdays?: number[]
   /** 连住 N 晚起触发 */
   minNights?: number
+  /** 连住最多 N 晚 */
+  maxNights?: number
   /** 提前 N 天预订触发 */
   minAdvanceDays?: number
   /** 适用渠道 ID（仅 strategy='channel'） */

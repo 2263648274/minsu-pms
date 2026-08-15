@@ -313,6 +313,7 @@
 </template>
 
 <script setup lang="ts">
+// reload-trigger 2026-08-15 07:23
 import { ref, computed, onMounted, reactive } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
@@ -469,7 +470,18 @@ function yuanToCents(yuan: number): number {
 async function loadMeta() {
   roomTypes.value = await listRoomTypes()
   if (roomTypes.value.length > 0 && selectedRoomTypeId.value === undefined) {
-    selectedRoomTypeId.value = roomTypes.value[0].id
+    // 后端按名称/创建时间返回的第一种房型不一定已有房价计划；
+    // 优先定位数据库中确实存在计划的房型，避免页面初始显示“房价计划（0）”。
+    for (const roomType of roomTypes.value) {
+      const existingPlans = await listRatePlansByRoomType(roomType.id)
+      if (existingPlans.length > 0) {
+        selectedRoomTypeId.value = roomType.id
+        break
+      }
+    }
+    if (selectedRoomTypeId.value === undefined) {
+      selectedRoomTypeId.value = roomTypes.value[0].id
+    }
   }
 }
 
@@ -482,6 +494,8 @@ async function loadPlans() {
   try {
     plans.value = await listRatePlansByRoomType(selectedRoomTypeId.value)
   } catch (e: any) {
+    // 保留原始错误，避免页面静默显示“0”掩盖真正接线问题。
+    plans.value = []
     ElMessage.error('加载房价计划失败：' + (e?.message || e))
   } finally {
     planLoading.value = false
