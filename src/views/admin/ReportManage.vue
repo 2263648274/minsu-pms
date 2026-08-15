@@ -266,20 +266,7 @@ const barHeight = (revenue: number) => {
   return Math.max((revenue / max) * 100, revenue > 0 ? 4 : 0)
 }
 
-// ========== 数据生成 ==========
-
-const SEED_CHANNELS = ['DIRECT', 'ctrip', 'fliggy', 'meituan', 'douyin', 'taobao']
-const SEED_ROOM_TYPES = ['海景大床房', '园景双床房', '豪华家庭房', '亲子套房', '经济单人房']
-
-function dateRange(start: string, end: string): string[] {
-  const res: string[] = []
-  const s = new Date(start)
-  const e = new Date(end)
-  for (let d = new Date(s); d <= e; d.setDate(d.getDate() + 1)) {
-    res.push(d.toISOString().slice(0, 10))
-  }
-  return res
-}
+// 数据来源全部走 reportService（/api/reports/*），前端不再生成 mock 种子数据。
 
 const reload = async () => {
   const today = new Date()

@@ -2,8 +2,7 @@
  * 认证 Service
  * 民宿管理者账号的登录、注册、当前用户信息。
  *
- * 当前实现：通过 mock 数据返回；生产环境切换为真实后端请求。
- * Phase 2 可移除对旧 api.ts 的依赖，改为直接调 request 实例。
+ * 已切真后端：所有方法转发到 ./api 里的真实 HTTP 接口（/api/auth/*、/api/users/*）。
  */
 import { login as _login, register as _register, getUserInfo as _getUserInfo, getUserList as _getUserList } from './api'
 import type { LoginRequest, LoginResponse, UserInfo, UserListParams, PageResult } from '@/types'
