@@ -232,6 +232,7 @@ async function loadMeta() {
   if (rts.length > 0 && !selectedRoomTypeId.value) {
     selectedRoomTypeId.value = rts[0].id
   }
+  if (selectedRoomTypeId.value) await loadCalendar()
 }
 
 function onPropertyChange() {
@@ -447,7 +448,6 @@ function statusTagType(s: string): 'success' | 'danger' | 'warning' {
 
 onMounted(async () => {
   await loadMeta()
-  await loadCalendar()
 })
 </script>
 

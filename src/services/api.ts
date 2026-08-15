@@ -126,16 +126,16 @@ export const deleteRole = async (_id: number): Promise<boolean> => {
 // ========== 房间相关 ==========
 
 // 后端 Room entity → 前端 RoomInfo
-function mapRoom(r: any): RoomInfo {
+function mapRoom(r: any, roomType?: any): RoomInfo {
   return {
     id: r.id,
     roomNo: r.roomNo || '',
-    type: mapRoomType(r.roomTypeId),
+    type: mapRoomType(roomType?.name || r.roomTypeId),
     floor: r.floor ?? 1,
-    capacity: 2,
-    price: 0,
-    area: 0,
-    facilities: [],
+    capacity: Number(roomType?.maxOccupancy) || 2,
+    price: Number(roomType?.basePrice) || 0,
+    area: Number(roomType?.area) || 0,
+    facilities: roomType?.bedType ? [roomType.bedType] : [],
     status: mapRoomStatus(r.status),
     description: r.remarks || '',
     createdAt: r.createdAt,
@@ -143,7 +143,12 @@ function mapRoom(r: any): RoomInfo {
   }
 }
 
-function mapRoomType(_roomTypeId: number): any {
+function mapRoomType(value: any): any {
+  const name = String(value || '').toLowerCase()
+  if (name.includes('单') || name.includes('single')) return 'single'
+  if (name.includes('家庭') || name.includes('family')) return 'family'
+  if (name.includes('套') || name.includes('suite')) return 'suite'
+  if (name.includes('青旅') || name.includes('床位') || name.includes('dorm')) return 'dorm'
   return 'double'
 }
 
@@ -165,10 +170,16 @@ export const getRoomList = async (params: RoomListParams): Promise<PageResult<Ro
     params: {
       current: params.page || 1,
       size: params.pageSize || 20,
-      keyword: params.roomNo
+      keyword: params.roomNo,
+      status: params.status ? unmapRoomStatus(params.status) : undefined,
+      floor: params.floor,
+      propertyId: params.propertyId,
+      roomTypeId: params.roomTypeId
     }
   })
-  return adaptPage(res, mapRoom)
+  const roomTypes = await getRoomTypeList()
+  const byId = new Map(roomTypes.map(rt => [rt.id, rt]))
+  return adaptPage(res, (room: any) => mapRoom(room, byId.get(room.roomTypeId)))
 }
 
 export const getAllRooms = async (): Promise<RoomInfo[]> => {
@@ -177,7 +188,9 @@ export const getAllRooms = async (): Promise<RoomInfo[]> => {
     method: 'get',
     params: { current: 1, size: 999 }
   })
-  return (res.records || []).map(mapRoom)
+  const roomTypes = await getRoomTypeList()
+  const byId = new Map(roomTypes.map(rt => [rt.id, rt]))
+  return (res.records || []).map((room: any) => mapRoom(room, byId.get(room.roomTypeId)))
 }
 
 export const createRoom = async (data: Partial<RoomInfo>): Promise<{ id: number }> => {

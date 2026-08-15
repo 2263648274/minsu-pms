@@ -132,6 +132,8 @@ export interface RoomListParams extends PageParams {
   type?: RoomType
   status?: RoomStatus
   floor?: number
+  propertyId?: number
+  roomTypeId?: number
 }
 
 // 订单状态枚举：待支付 / 已确认 / 已入住 / 已退房 / 已完成 / 已取消 / 已退款 / 未到店
