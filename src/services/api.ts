@@ -369,6 +369,17 @@ export const checkOutOrder = async (id: number): Promise<boolean> => {
   return true
 }
 
+export const cancelOrder = async (id: number, reason?: string): Promise<any> => {
+  // 后端逻辑：状态校验（已入住/已退房不可取消）→ 置 CANCELLED；
+  // 已支付金额 > 0 时自动标记 REFUNDED。返回更新后的 Booking。
+  const res = await request<any>({
+    url: `/bookings/${id}/cancel`,
+    method: 'post',
+    data: reason ? { reason } : undefined
+  })
+  return res
+}
+
 // ========== 客户相关 ==========
 
 function mapCustomer(c: any): CustomerInfo {

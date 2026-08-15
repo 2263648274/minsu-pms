@@ -16,7 +16,8 @@ import {
   updateOrder as _updateOrder,
   deleteOrder as _deleteOrder,
   checkInOrder as _checkInOrder,
-  checkOutOrder as _checkOutOrder
+  checkOutOrder as _checkOutOrder,
+  cancelOrder as _cancelOrder
 } from './api'
 import type {
   OrderInfo,
@@ -24,7 +25,6 @@ import type {
   PageResult
 } from '@/types'
 import type { ID } from '@/types/domain/common'
-import { mockCancelBooking } from './mock'
 
 /** 状态机：定义合法的状态流转 */
 const VALID_TRANSITIONS: Record<string, string[]> = {
@@ -73,26 +73,29 @@ export const bookingService = {
 
   /**
    * 取消订单（含退款处理）。
-   * 状态机校验：只有 pending/confirmed 状态可取消。
+   * 调用后端 POST /api/bookings/{id}/cancel：
+   * - 后端做状态校验（已入住/已退房不可取消）
+   * - 已支付金额 > 0 时自动标记 REFUNDED
    */
   async cancelBooking(
     id: ID,
     reason: string,
     refund: boolean
   ): Promise<{ ok: boolean; status: string; refunded: boolean; message?: string }> {
-    // 状态机校验（演示版：从 mock 拿当前状态）
-    const allOrders = await _getAllOrders()
-    const order = allOrders.find(o => o.id === id)
-    if (!order) return { ok: false, status: 'not_found', refunded: false, message: '订单不存在' }
-    if (!VALID_TRANSITIONS[order.status]?.includes('cancelled')) {
+    void refund // 后端自动按已支付金额退款，无需前端传开关
+    try {
+      const res = await _cancelOrder(id as number, reason)
+      const refunded = res?.paymentStatus === 'REFUNDED'
+      // 后端取消成功固定返回 CANCELLED
+      return { ok: true, status: 'cancelled', refunded, message: '订单已取消' }
+    } catch (e: any) {
       return {
         ok: false,
-        status: order.status,
+        status: 'error',
         refunded: false,
-        message: `当前状态 [${order.status}] 不允许取消`
+        message: e?.message || '取消失败，请稍后重试'
       }
     }
-    return mockCancelBooking(id, reason, refund)
   },
 
   /** 判断状态流转是否合法 */
