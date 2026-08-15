@@ -454,6 +454,29 @@ export const deleteCustomer = async (id: number): Promise<boolean> => {
   return true
 }
 
+/**
+ * 客人详情 + 消费聚合。
+ * 后端 GET /api/customers/{id} 返回 { customer, history[], totalStays, totalSpent }，
+ * history 为该客人的订单列表（Booking）。
+ */
+export const getCustomerDetail = async (id: number): Promise<{
+  customer: CustomerInfo
+  history: any[]
+  totalStays: number
+  totalSpent: number
+}> => {
+  const res = await request<any>({
+    url: `/customers/${id}`,
+    method: 'get'
+  })
+  return {
+    customer: mapCustomer(res.customer || {}),
+    history: res.history || [],
+    totalStays: res.totalStays || 0,
+    totalSpent: Number(res.totalSpent || 0)
+  }
+}
+
 // ========== 仪表盘统计 ==========
 
 export const getDashboardStats = async (): Promise<DashboardStats> => {
