@@ -26,6 +26,9 @@
         <mybatis-plus.version>3.5.5</mybatis-plus.version>
         <jjwt.version>0.12.5</jjwt.version>
         <hutool.version>5.8.27</hutool.version>
+        <!-- Flyway 8 community dropped MySQL 5.7 support; 7.15 supports both
+             the current 5.7 pilot database and the documented MySQL 8 target. -->
+        <flyway.version>7.15.0</flyway.version>
     </properties>
 
     <dependencies>
@@ -64,7 +67,11 @@
             <scope>runtime</scope>
         </dependency>
 
-        <!-- Flyway 已移除：改用 SqlSchemaInitializer（ResourceDatabasePopulator）直接跑 SQL -->
+        <!-- Versioned schema migrations. Never rebuild the schema on application startup. -->
+        <dependency>
+            <groupId>org.flywaydb</groupId>
+            <artifactId>flyway-core</artifactId>
+        </dependency>
 
         <!-- JWT 0.12.x -->
         <dependency>

@@ -10,8 +10,7 @@ SET FOREIGN_KEY_CHECKS = 0;
 -- -----------------------------------------------------------------
 -- 1. 用户表（管理员账号）
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `user`;
-CREATE TABLE `user` (
+CREATE TABLE IF NOT EXISTS `user` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT COMMENT '主键',
   `username`    VARCHAR(64)  NOT NULL                COMMENT '登录用户名',
   `password`    VARCHAR(255) NOT NULL                COMMENT 'BCrypt 加密密码',
@@ -31,8 +30,7 @@ CREATE TABLE `user` (
 -- -----------------------------------------------------------------
 -- 2. 物业表（一栋楼/一家酒店）
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `property`;
-CREATE TABLE `property` (
+CREATE TABLE IF NOT EXISTS `property` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT,
   `name`        VARCHAR(128) NOT NULL                COMMENT '物业名称',
   `code`        VARCHAR(32)  NOT NULL                COMMENT '内部代号',
@@ -52,8 +50,7 @@ CREATE TABLE `property` (
 -- -----------------------------------------------------------------
 -- 3. 房型表
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `room_type`;
-CREATE TABLE `room_type` (
+CREATE TABLE IF NOT EXISTS `room_type` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `property_id`  BIGINT       NOT NULL                COMMENT '所属物业',
   `name`         VARCHAR(64)  NOT NULL                COMMENT '房型名称（标准间/大床房/套房）',
@@ -75,8 +72,7 @@ CREATE TABLE `room_type` (
 -- -----------------------------------------------------------------
 -- 4. 房间实例
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `room`;
-CREATE TABLE `room` (
+CREATE TABLE IF NOT EXISTS `room` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `property_id`  BIGINT       NOT NULL,
   `room_type_id` BIGINT       NOT NULL,
@@ -95,8 +91,7 @@ CREATE TABLE `room` (
 -- -----------------------------------------------------------------
 -- 5. 房价计划
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `rate_plan`;
-CREATE TABLE `rate_plan` (
+CREATE TABLE IF NOT EXISTS `rate_plan` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `property_id`  BIGINT       NOT NULL,
   `room_type_id` BIGINT       NOT NULL,
@@ -120,8 +115,7 @@ CREATE TABLE `rate_plan` (
 -- -----------------------------------------------------------------
 -- 6. 房价日历（rate_plan × date 的具体价格）
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `rate_calendar`;
-CREATE TABLE `rate_calendar` (
+CREATE TABLE IF NOT EXISTS `rate_calendar` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `rate_plan_id` BIGINT       NOT NULL,
   `room_type_id` BIGINT       NOT NULL,
@@ -141,8 +135,7 @@ CREATE TABLE `rate_calendar` (
 -- -----------------------------------------------------------------
 -- 7. 库存/房态（room_type × date）
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `inventory`;
-CREATE TABLE `inventory` (
+CREATE TABLE IF NOT EXISTS `inventory` (
   `id`            BIGINT       NOT NULL AUTO_INCREMENT,
   `room_type_id`  BIGINT       NOT NULL,
   `stay_date`     DATE         NOT NULL,
@@ -160,8 +153,7 @@ CREATE TABLE `inventory` (
 -- -----------------------------------------------------------------
 -- 8. 客人
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `customer`;
-CREATE TABLE `customer` (
+CREATE TABLE IF NOT EXISTS `customer` (
   `id`         BIGINT       NOT NULL AUTO_INCREMENT,
   `name`       VARCHAR(64)  NOT NULL,
   `phone`      VARCHAR(32)           DEFAULT NULL,
@@ -185,8 +177,7 @@ CREATE TABLE `customer` (
 -- -----------------------------------------------------------------
 -- 9. 订单
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `booking`;
-CREATE TABLE `booking` (
+CREATE TABLE IF NOT EXISTS `booking` (
   `id`              BIGINT       NOT NULL AUTO_INCREMENT,
   `booking_no`      VARCHAR(32)  NOT NULL                COMMENT '订单号',
   `property_id`     BIGINT       NOT NULL,
@@ -229,8 +220,7 @@ CREATE TABLE `booking` (
 -- -----------------------------------------------------------------
 -- 10. 支付记录
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `payment`;
-CREATE TABLE `payment` (
+CREATE TABLE IF NOT EXISTS `payment` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `booking_id`   BIGINT       NOT NULL,
   `amount`       DECIMAL(10,2) NOT NULL,
@@ -250,8 +240,7 @@ CREATE TABLE `payment` (
 -- -----------------------------------------------------------------
 -- 11. OTA 渠道
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `channel`;
-CREATE TABLE `channel` (
+CREATE TABLE IF NOT EXISTS `channel` (
   `id`           BIGINT       NOT NULL AUTO_INCREMENT,
   `code`         VARCHAR(32)  NOT NULL                COMMENT 'CTRIP/MEITUAN/FLIGGY/BOOKING/AIRBNB',
   `name`         VARCHAR(64)  NOT NULL,
@@ -274,8 +263,7 @@ CREATE TABLE `channel` (
 -- -----------------------------------------------------------------
 -- 12. 渠道房型映射
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `channel_room_mapping`;
-CREATE TABLE `channel_room_mapping` (
+CREATE TABLE IF NOT EXISTS `channel_room_mapping` (
   `id`            BIGINT       NOT NULL AUTO_INCREMENT,
   `channel_id`    BIGINT       NOT NULL,
   `room_type_id`  BIGINT       NOT NULL,
@@ -292,8 +280,7 @@ CREATE TABLE `channel_room_mapping` (
 -- -----------------------------------------------------------------
 -- 13. OTA 同步日志
 -- -----------------------------------------------------------------
-DROP TABLE IF EXISTS `ota_sync_log`;
-CREATE TABLE `ota_sync_log` (
+CREATE TABLE IF NOT EXISTS `ota_sync_log` (
   `id`          BIGINT       NOT NULL AUTO_INCREMENT,
   `channel_id`  BIGINT       NOT NULL,
   `operation`   VARCHAR(32)  NOT NULL                COMMENT 'PUSH_AVAIL/PUSH_RATE/FETCH_BOOKING/...',

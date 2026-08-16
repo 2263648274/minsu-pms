@@ -18,6 +18,11 @@ spring:
       pool-name: PMS-HikariCP
       max-lifetime: 1800000
       connection-timeout: 30000
+  flyway:
+    # Demo rows are strictly a development concern. Existing legacy dev
+    # databases are baselined after the old seed version to preserve data.
+    locations: classpath:db/migration,classpath:db/dev
+    baseline-version: 900
 
 # 自定义配置
 pms:
