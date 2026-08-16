@@ -32,11 +32,11 @@ class DataInitializerTest {
         existing.setId(1L);
         existing.setUsername("admin");
         existing.setPassword("existing-hash");
-        when(userMapper.selectOne(any())).thenReturn(existing);
+        when(userMapper.selectGlobalByUsername("admin")).thenReturn(existing);
 
         new DataInitializer(userMapper, passwordEncoder).run();
 
-        verify(userMapper, never()).insert(any());
+        verify(userMapper, never()).insertBootstrapAdmin(any());
         verify(userMapper, never()).updateById(any());
         verifyNoInteractions(passwordEncoder);
         assertEquals("existing-hash", existing.getPassword());
@@ -44,16 +44,17 @@ class DataInitializerTest {
 
     @Test
     void createsAdminOnlyWhenMissing() throws Exception {
-        when(userMapper.selectOne(any())).thenReturn(null);
+        when(userMapper.selectGlobalByUsername("admin")).thenReturn(null);
         when(passwordEncoder.encode("admin123")).thenReturn("encoded-password");
 
         new DataInitializer(userMapper, passwordEncoder).run();
 
         ArgumentCaptor<User> captor = ArgumentCaptor.forClass(User.class);
-        verify(userMapper).insert(captor.capture());
+        verify(userMapper).insertBootstrapAdmin(captor.capture());
         verify(userMapper, never()).updateById(any());
 
         User created = captor.getValue();
+        assertEquals(1L, created.getTenantId());
         assertEquals("admin", created.getUsername());
         assertEquals("encoded-password", created.getPassword());
         assertEquals("ADMIN", created.getRole());

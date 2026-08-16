@@ -8,33 +8,18 @@ import lombok.Data;
 
 import java.time.LocalDateTime;
 
-/**
- * 管理员账号（对应 user 表）
- */
 @Data
-@TableName("user")
-public class User {
+@TableName("tenant")
+public class Tenant {
 
     @TableId(type = IdType.AUTO)
     private Long id;
 
-    private Long tenantId;
+    private String code;
 
-    private String username;
-
-    private String password;
-
-    private String realName;
-
-    private String email;
-
-    private String phone;
-
-    private String role;
+    private String name;
 
     private Integer status;
-
-    private LocalDateTime lastLoginAt;
 
     private LocalDateTime createdAt;
 

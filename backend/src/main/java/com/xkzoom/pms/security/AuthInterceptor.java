@@ -1,7 +1,8 @@
 package com.xkzoom.pms.security;
 
-import com.xkzoom.pms.common.Result;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.xkzoom.pms.common.Result;
+import com.xkzoom.pms.tenant.TenantContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
 import javax.servlet.http.HttpServletRequest;
@@ -12,23 +13,25 @@ import org.springframework.stereotype.Component;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
- * 鉴权拦截器：所有 /api/**（白名单除外）都要带 Authorization: Bearer xxx
- * 解析后把 userId/username/role 放到 request attribute
+ * Authenticates API requests and establishes the tenant context used by the
+ * MyBatis-Plus tenant interceptor.
  */
 @Component
 @RequiredArgsConstructor
 public class AuthInterceptor implements HandlerInterceptor {
 
-    public static final String ATTR_USER_ID   = "currentUserId";
-    public static final String ATTR_USERNAME  = "currentUsername";
-    public static final String ATTR_ROLE      = "currentRole";
+    public static final String ATTR_USER_ID = "currentUserId";
+    public static final String ATTR_TENANT_ID = "currentTenantId";
+    public static final String ATTR_USERNAME = "currentUsername";
+    public static final String ATTR_ROLE = "currentRole";
 
     private final JwtUtil jwtUtil;
     private final ObjectMapper objectMapper = new ObjectMapper();
 
     @Override
     public boolean preHandle(HttpServletRequest req, HttpServletResponse resp, Object handler) throws Exception {
-        // OPTIONS 直接放行（CORS 预检）
+        TenantContext.clear();
+
         if ("OPTIONS".equalsIgnoreCase(req.getMethod())) {
             return true;
         }
@@ -43,16 +46,34 @@ public class AuthInterceptor implements HandlerInterceptor {
         try {
             Claims claims = jwtUtil.parse(token);
             Long uid = claims.get("uid", Long.class);
+            Long tenantId = claims.get("tid", Long.class);
             String username = claims.get("username", String.class);
             String role = claims.get("role", String.class);
+            if (uid == null || tenantId == null || tenantId <= 0) {
+                writeUnauthorized(resp, "Token 缺少用户或租户信息，请重新登录");
+                return false;
+            }
+
+            TenantContext.setTenantId(tenantId);
             req.setAttribute(ATTR_USER_ID, uid);
+            req.setAttribute(ATTR_TENANT_ID, tenantId);
             req.setAttribute(ATTR_USERNAME, username);
             req.setAttribute(ATTR_ROLE, role);
             return true;
-        } catch (JwtException e) {
-            writeUnauthorized(resp, "Token 无效或已过期: " + e.getMessage());
+        } catch (JwtException | IllegalArgumentException e) {
+            TenantContext.clear();
+            writeUnauthorized(resp, "Token 无效或已过期");
             return false;
         }
+    }
+
+    @Override
+    public void afterCompletion(
+            HttpServletRequest request,
+            HttpServletResponse response,
+            Object handler,
+            Exception ex) {
+        TenantContext.clear();
     }
 
     private void writeUnauthorized(HttpServletResponse resp, String msg) throws Exception {

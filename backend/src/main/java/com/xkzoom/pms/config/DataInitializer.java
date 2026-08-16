@@ -34,13 +34,12 @@ public class DataInitializer implements CommandLineRunner {
         String targetUsername = "admin";
         String targetPassword = "admin123";
 
-        User existing = userMapper.selectOne(
-                new LambdaQueryWrapper<User>().eq(User::getUsername, targetUsername)
-        );
+        User existing = userMapper.selectGlobalByUsername(targetUsername);
 
         if (existing == null) {
             String hashed = passwordEncoder.encode(targetPassword);
             User admin = new User();
+            admin.setTenantId(1L);
             admin.setUsername(targetUsername);
             admin.setPassword(hashed);
             admin.setRealName("系统管理员");
@@ -49,7 +48,7 @@ public class DataInitializer implements CommandLineRunner {
             admin.setStatus(1);
             admin.setCreatedAt(LocalDateTime.now());
             admin.setUpdatedAt(LocalDateTime.now());
-            userMapper.insert(admin);
+            userMapper.insertBootstrapAdmin(admin);
             log.info("✓ 已创建 admin 账号（密码 admin123）");
         } else {
             log.info("✓ admin 账号已存在，保留现有密码");
