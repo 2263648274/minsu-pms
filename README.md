@@ -152,7 +152,9 @@ npx cap open android   # 用 Android Studio 打开
 
 | 角色 | 账号 | 密码 |
 | --- | --- | --- |
-| 系统管理员 | `admin` | `admin123` |
+| 本地 `dev` 管理员 | `admin` | `admin123` |
+
+> 默认账号仅由 `dev` profile 创建；生产环境不会创建默认管理员。
 
 ---
 
@@ -175,8 +177,14 @@ npm run lint          # ESLint：硬错误必须为 0
 npm run typecheck     # Vue + TypeScript 类型检查
 npm run build         # Vite 生产构建
 npm run test:api      # 对运行中的后端执行 13 项只读核心 API 冒烟
+npm run test:tenant   # 真实双租户隔离冒烟
+npm run test:booking-concurrency # 订单幂等、并发取消与库存竞争
+npm run test:security # RBAC、OTA 密钥加密/脱敏与审计
 npm run test:quality  # lint + typecheck + build
 ```
+
+生产容器部署、备份恢复、监控指标与事故处理见
+[生产运维手册](docs/operations-runbook.md)。
 
 ---
 

@@ -30,3 +30,8 @@ logging:
   level:
     root: INFO
     com.xkzoom.pms: INFO
+
+management:
+  server:
+    address: 0.0.0.0
+    port: ${MANAGEMENT_PORT:8091}

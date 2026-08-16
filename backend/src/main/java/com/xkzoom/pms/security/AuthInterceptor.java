@@ -6,6 +6,7 @@ import com.xkzoom.pms.entity.AuditLog;
 import com.xkzoom.pms.entity.User;
 import com.xkzoom.pms.mapper.AuditLogMapper;
 import com.xkzoom.pms.mapper.UserMapper;
+import com.xkzoom.pms.observability.RequestLoggingFilter;
 import com.xkzoom.pms.tenant.TenantContext;
 import io.jsonwebtoken.Claims;
 import io.jsonwebtoken.JwtException;
@@ -146,6 +147,8 @@ public class AuthInterceptor implements HandlerInterceptor {
     }
 
     private String requestId(HttpServletRequest request) {
+        Object existing = request.getAttribute(RequestLoggingFilter.ATTR_REQUEST_ID);
+        if (existing instanceof String && !((String) existing).isBlank()) return (String) existing;
         String supplied = request.getHeader("X-Request-ID");
         if (supplied != null && supplied.matches("[A-Za-z0-9._-]{8,64}")) return supplied;
         return UUID.randomUUID().toString();

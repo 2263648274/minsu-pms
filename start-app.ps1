@@ -105,7 +105,7 @@ $deadline = (Get-Date).AddSeconds(120)
 $backendOk = $false
 $frontendOk = $false
 while ((Get-Date) -lt $deadline) {
-    $backendOk = (Test-TcpPort 8090) -and (Test-HttpEndpoint 'http://127.0.0.1:8090/api/auth/login')
+    $backendOk = (Test-TcpPort 8090) -and (Test-HttpEndpoint 'http://127.0.0.1:8090/api/health')
     $frontendOk = Test-TcpPort 5173
     if ($backendOk -and $frontendOk) {
         break

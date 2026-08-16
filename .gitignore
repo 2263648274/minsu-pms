@@ -30,6 +30,7 @@ android/.cxx/
 .env.*.local
 .env.production
 .env.production.*
+!.env.production.example
 *.pem
 *.key
 *.p12

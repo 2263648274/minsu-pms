@@ -1,0 +1,12 @@
+node_modules
+dist
+.git
+.github
+android
+backend
+backend/target
+backend/logs
+*.log
+.env
+.env.*
+!.env.production.example

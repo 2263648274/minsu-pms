@@ -17,9 +17,5 @@ public class PmsApplication {
 
     public static void main(String[] args) {
         SpringApplication.run(PmsApplication.class, args);
-        System.out.println("\n========================================");
-        System.out.println("  PMS Backend Started on port 8080");
-        System.out.println("  API base: http://localhost:8080/api");
-        System.out.println("========================================\n");
     }
 }
