@@ -65,7 +65,11 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     const text = await res.text().catch(() => '')
     // 401 与后端 axios 拦截器保持一致：清掉 token + 跳登录
     if (res.status === 401) {
-      try { localStorage.removeItem('token') } catch {}
+      try {
+        localStorage.removeItem('token')
+      } catch {
+        // Token cleanup is best-effort when storage access is unavailable.
+      }
       if (typeof window !== 'undefined') window.location.href = '/admin/login'
     }
     throw new Error(`HTTP ${res.status} ${res.statusText}: ${text}`)

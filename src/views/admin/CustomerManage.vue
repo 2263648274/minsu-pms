@@ -17,6 +17,12 @@
             <el-option label="钻石" :value="3" />
           </el-select>
         </el-form-item>
+        <el-form-item label="客户状态">
+          <el-select v-model="searchForm.blacklisted" placeholder="全部" clearable style="width: 130px">
+            <el-option label="正常" :value="false" />
+            <el-option label="黑名单" :value="true" />
+          </el-select>
+        </el-form-item>
         <el-form-item>
           <button type="button" class="linear-btn linear-btn--primary" @click="handleSearch">搜索</button>
           <button type="button" class="linear-btn linear-btn--secondary" @click="handleReset">重置</button>
@@ -46,6 +52,7 @@
               <div>
                 <div class="c-name">
                   {{ row.name }}
+                  <el-tag v-if="row.blacklisted" size="small" type="danger">黑名单</el-tag>
                   <el-icon v-if="row.gender === 'female'" class="gender-icon female"><Female /></el-icon>
                   <el-icon v-else-if="row.gender === 'male'" class="gender-icon male"><Male /></el-icon>
                 </div>
@@ -84,8 +91,12 @@
           </template>
         </el-table-column>
         <el-table-column prop="createdAt" label="注册时间" width="170" />
-        <el-table-column label="操作" width="180" fixed="right">
+        <el-table-column label="操作" width="290" fixed="right">
           <template #default="{ row }">
+            <el-button type="primary" link @click="handleDetail(row)">详情</el-button>
+            <el-button :type="row.blacklisted ? 'success' : 'warning'" link @click="handleBlacklist(row)">
+              {{ row.blacklisted ? '移出黑名单' : '加入黑名单' }}
+            </el-button>
             <el-button type="primary" link @click="handleEdit(row)">编辑</el-button>
             <el-button type="danger" link @click="handleDelete(row)">删除</el-button>
           </template>
@@ -103,6 +114,43 @@
         @size-change="loadData"
       />
     </div>
+
+    <el-drawer v-model="detailVisible" title="客户档案" size="680px">
+      <div v-loading="detailLoading">
+        <template v-if="customerDetail">
+          <el-descriptions :column="2" border>
+            <el-descriptions-item label="客户">{{ customerDetail.customer.name }}</el-descriptions-item>
+            <el-descriptions-item label="状态">
+              <el-tag :type="customerDetail.customer.blacklisted ? 'danger' : 'success'">
+                {{ customerDetail.customer.blacklisted ? '黑名单' : '正常' }}
+              </el-tag>
+            </el-descriptions-item>
+            <el-descriptions-item label="手机号">{{ customerDetail.customer.phone || '—' }}</el-descriptions-item>
+            <el-descriptions-item label="会员等级">{{ getVipLabel(customerDetail.customer.vipLevel) }}</el-descriptions-item>
+            <el-descriptions-item label="累计入住">{{ customerDetail.totalStays }} 次</el-descriptions-item>
+            <el-descriptions-item label="累计消费">¥{{ customerDetail.totalSpent.toLocaleString('zh-CN') }}</el-descriptions-item>
+            <el-descriptions-item label="备注" :span="2">{{ customerDetail.customer.remark || '—' }}</el-descriptions-item>
+          </el-descriptions>
+
+          <div class="detail-heading">消费与入住记录</div>
+          <el-table :data="customerDetail.history" border stripe empty-text="暂无消费记录">
+            <el-table-column prop="bookingNo" label="订单号" min-width="150" />
+            <el-table-column label="入住日期" width="115">
+              <template #default="{ row }">{{ row.checkInDate || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="退房日期" width="115">
+              <template #default="{ row }">{{ row.checkOutDate || '—' }}</template>
+            </el-table-column>
+            <el-table-column label="来源" width="90">
+              <template #default="{ row }">{{ sourceLabel(row.source) }}</template>
+            </el-table-column>
+            <el-table-column label="消费" width="110" align="right">
+              <template #default="{ row }">¥{{ Number(row.totalAmount || 0).toLocaleString('zh-CN') }}</template>
+            </el-table-column>
+          </el-table>
+        </template>
+      </div>
+    </el-drawer>
 
     <!-- 新增/编辑弹窗 -->
     <el-dialog
@@ -176,7 +224,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import { Female, Male, Trophy } from '@element-plus/icons-vue'
-import { getCustomerList, createCustomer, updateCustomer, deleteCustomer } from '@/services/api'
+import { getCustomerList, getCustomerDetail, createCustomer, updateCustomer, deleteCustomer } from '@/services/api'
 import type { CustomerInfo } from '@/types'
 import type { FormInstance, FormRules } from 'element-plus'
 
@@ -187,11 +235,15 @@ const total = ref(0)
 const totalSpend = ref(0)
 const page = ref(1)
 const pageSize = ref(10)
+const detailVisible = ref(false)
+const detailLoading = ref(false)
+const customerDetail = ref<Awaited<ReturnType<typeof getCustomerDetail>> | null>(null)
 
 const searchForm = reactive({
   name: '',
   phone: '',
-  vipLevel: undefined as 0 | 1 | 2 | 3 | undefined
+  vipLevel: undefined as 0 | 1 | 2 | 3 | undefined,
+  blacklisted: undefined as boolean | undefined
 })
 
 const dialogVisible = ref(false)
@@ -229,7 +281,8 @@ const loadData = async () => {
       pageSize: pageSize.value,
       name: searchForm.name || undefined,
       phone: searchForm.phone || undefined,
-      vipLevel: searchForm.vipLevel
+      vipLevel: searchForm.vipLevel,
+      blacklisted: searchForm.blacklisted
     })
     tableData.value = result.list
     total.value = result.total
@@ -248,6 +301,7 @@ const handleReset = () => {
   searchForm.name = ''
   searchForm.phone = ''
   searchForm.vipLevel = undefined
+  searchForm.blacklisted = undefined
   page.value = 1
   loadData()
 }
@@ -273,6 +327,39 @@ const handleEdit = (row: CustomerInfo) => {
   dialogTitle.value = `编辑客户 ${row.name}`
   Object.assign(formData, row)
   dialogVisible.value = true
+}
+
+const handleDetail = async (row: CustomerInfo) => {
+  detailVisible.value = true
+  detailLoading.value = true
+  customerDetail.value = null
+  try {
+    customerDetail.value = await getCustomerDetail(row.id)
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '客户详情加载失败')
+  } finally {
+    detailLoading.value = false
+  }
+}
+
+const handleBlacklist = async (row: CustomerInfo) => {
+  const next = !row.blacklisted
+  try {
+    await ElMessageBox.confirm(
+      next ? `确定将 ${row.name} 加入黑名单？` : `确定将 ${row.name} 移出黑名单？`,
+      next ? '加入黑名单' : '移出黑名单',
+      { type: next ? 'warning' : 'info' }
+    )
+  } catch {
+    return
+  }
+  try {
+    await updateCustomer(row.id, { blacklisted: next })
+    row.blacklisted = next
+    ElMessage.success(next ? '已加入黑名单' : '已移出黑名单')
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '黑名单状态更新失败')
+  }
 }
 
 const handleSubmit = async () => {
@@ -335,6 +422,19 @@ const getVipType = (level?: number): 'info' | 'success' | 'warning' | 'danger' =
   }
   return map[level || 0] || 'info'
 }
+
+const sourceLabel = (source?: string) => {
+  const map: Record<string, string> = {
+    direct: '直销',
+    DIRECT: '直销',
+    ctrip: '携程',
+    fliggy: '飞猪',
+    meituan: '美团',
+    douyin: '抖音',
+    taobao: '淘宝'
+  }
+  return source ? (map[source] || source) : '—'
+}
 </script>
 
 <style scoped lang="scss">
@@ -392,6 +492,13 @@ const getVipType = (level?: number): 'info' | 'success' | 'warning' | 'danger' =
   .amount {
     color: #f56c6c;
     font-size: 15px;
+  }
+
+  .detail-heading {
+    margin: 24px 0 12px;
+    color: var(--text-primary);
+    font-size: 16px;
+    font-weight: 600;
   }
 }
 </style>

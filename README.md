@@ -20,18 +20,18 @@
 
 | 模块 | 状态 | 说明 |
 | --- | --- | --- |
-| 仪表盘 | ✅ 基础 / 🚧 扩展 | 今日营收 / 入住率 / 房态概览已接后端；营收趋势 / 房型表现 / 渠道表现三个接口仍为「待实现」占位 |
+| 仪表盘 | ✅ Phase 2 | 今日概览、本月营收趋势、渠道表现和房型表现均接真实后端报表接口 |
 | 房源管理 | ✅ Phase 2 | 物业 CRUD + 房型 / 房间 / 图集 / 入住政策；接入后端 `/api/properties`（CRUD + 分页查询） |
 | **库存房态** | ✅ Phase 2 | 30/60/90 天日历，可视化关房 / 限量 |
 | **房价管理** | ✅ Phase 2（基础价日历 MVP） | 房价计划列表与房型日历已接真实后端；支持单日改价 / 批量调价。当前范围为基础价，节假日 / 渠道 / 会员 / 连住优惠等扩展策略后续处理 |
-| 库存日历 | 🚧 Phase 2 | 页面与库存接口接线持续完善，目标为真实房态、关房与可售数量管理 |
-| 订单管理 | ✅ | 列表/创建/修改/删除/入住/退房走后端；**取消/退款仍为 mock**（`booking.ts → mockCancelBooking`），属 Phase 2 收尾项 |
-| 客人管理 | ✅ Phase 2 接线 | 客户档案 CRUD 与详情（消费历史/黑名单）已接 `/api/customers`；页面消费明细与黑名单入口待补 UI |
+| 库存日历 | ✅ Phase 2 | 30/60/90 天真实房态；缺失日期按该房型真实物理房间数初始化，支持单日改库存与批量关房 |
+| 订单管理 | ✅ Phase 2 | 列表/创建/修改/删除/入住/退房/取消/退款均走真实后端状态机 |
+| 客人管理 | ✅ Phase 2 | 客户 CRUD、消费历史详情、真实累计消费和黑名单筛选/切换均已接 `/api/customers` |
 | OTA 渠道 | ⏸️ 暂缓 | 携程 / 飞猪 / 美团 / 抖音 / 淘宝配置与适配层骨架已保留；真实 OTA API 调用按计划最后处理 |
-| 渠道同步日志 | ⏸️ 暂缓 | 当前仍为前端演练 / localStorage 数据，等待 OTA 阶段统一处理 |
+| 渠道同步日志 | ✅ Phase 2 数据层 | 列表、详情、统计与调试写入均接后端 `/api/sync-logs`；真实 OTA 同步事件留待 Phase 3 |
 | 财务对账 | ✅ Phase 2 接线 | 已接后端 `/api/finance/stats`、`/api/finance/channel-settlements`、`/api/finance/order-settlements`；支持按渠道聚合、订单明细与 CSV 导出 |
 | 营业报表 | ✅ Phase 2 接线 | 已接后端 `/api/reports/overview`、`trend`、`channel-breakdown`、`roomtype-breakdown`；展示 KPI、趋势及渠道 / 房型贡献 |
-| 非 OTA mock 收尾 | 🚧 进行中 | 按“完成一个模块 → 浏览器验收 → 单独 commit”推进；剩余 mock 以实际页面调用链为准，不把 OTA 范围混入本阶段 |
+| 非 OTA mock 收尾 | ✅ 功能完成 / 🚧 UI 回归 | 非 OTA 主调用链已切真实后端；质量门通过，仍需在可用的内置浏览器会话完成最终页面回归 |
 
 ---
 
@@ -161,12 +161,22 @@ npx cap open android   # 用 Android Studio 打开
 | Phase | 主题 | 状态 |
 | --- | --- | --- |
 | **Phase 1** | 业务抽象 + OTA 适配层骨架 | ✅ 已完成 |
-| **Phase 2** | 管理端核心模块 + 非 OTA mock 收尾 | 🚧 收尾中：房价计划、财务对账、营业报表、房源/房型/房间/库存、客人档案均已接真实后端并单独 commit；剩余订单取消/退款、仪表盘趋势三接口、库存缺失日期兜底 |
+| **Phase 2** | 管理端核心模块 + 非 OTA mock 收尾 | ✅ 功能完成；lint、类型检查、构建及只读 API 冒烟通过，等待最终内置浏览器 UI 回归 |
 | **Phase 3** | OTA 适配器实现（5 平台） | ⏸️ 暂缓，按计划最后处理 |
-| **Phase 4** | 财务对账 + 营业报表深度能力 | 📅 后续（基础接口已接入） |
-| **Phase 5** | 移动端优化 + 报表导出 | 📅 待开始 |
+| **Phase 4** | 财务对账 + 营业报表深度能力 | 🚧 基础对账、KPI、趋势、渠道/房型贡献和 CSV 已完成；深度财务能力后续扩展 |
+| **Phase 5** | 移动端优化 + 报表导出 | 🚧 Capacitor Android 壳与 CSV 已有；APK 发布验收和移动端专项优化未完成 |
 
 详细规划：[docs/phase-plan.md](docs/phase-plan.md)
+
+### 质量检查
+
+```bash
+npm run lint          # ESLint：硬错误必须为 0
+npm run typecheck     # Vue + TypeScript 类型检查
+npm run build         # Vite 生产构建
+npm run test:api      # 对运行中的后端执行 13 项只读核心 API 冒烟
+npm run test:quality  # lint + typecheck + build
+```
 
 ---
 

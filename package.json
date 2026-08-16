@@ -6,6 +6,9 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "typecheck": "vue-tsc --noEmit",
+    "test:api": "node scripts/api-smoke.mjs",
+    "test:quality": "npm run lint && npm run typecheck && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",
     "cap:copy": "npx cap copy",

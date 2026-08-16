@@ -170,15 +170,13 @@
     </el-row>
 
     <!-- ========== 说明 ========== -->
-    <el-alert type="warning" :closable="false" show-icon>
+    <el-alert type="info" :closable="false" show-icon>
       <template #title>数据来源说明</template>
       <div class="alert-content">
         <p>本页 KPI、趋势、渠道贡献和房型贡献均来自后端 ReportController。</p>
-        <p>Phase 4 实施路径：</p>
         <ul>
-          <li>新增 <code>ReportController</code> 暴露 <code>/api/report/overview</code> + <code>/api/report/trend</code> + <code>/api/report/channel-breakdown</code></li>
-          <li>聚合 SQL：营收按日 SUM / 按渠道 GROUP BY / 按房型 GROUP BY</li>
-          <li>真实数据回填本页，前端只需把 <code>buildMockData()</code> 替换为 <code>fetch()</code></li>
+          <li><code>/api/reports/overview</code> 提供营收、间夜、ADR、RevPAR 与入住率。</li>
+          <li>趋势、渠道和房型贡献均使用同一订单与库存口径聚合，不再生成前端 mock 数据。</li>
         </ul>
       </div>
     </el-alert>

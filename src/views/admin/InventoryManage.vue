@@ -171,6 +171,7 @@ import { Calendar, Refresh, Lock, Edit } from '@element-plus/icons-vue'
 import {
   getPropertyList,
   getRoomTypeList,
+  getRoomCountByType,
   queryInventory,
   toggleCloseRoom,
   upsertInventory,
@@ -218,11 +219,6 @@ const filteredRoomTypes = computed(() => {
   return roomTypes.value.filter(rt => rt.propertyId === selectedPropertyId.value)
 })
 
-// 当前房型
-const currentRoomType = computed(() =>
-  roomTypes.value.find(rt => rt.id === selectedRoomTypeId.value)
-)
-
 // ========== 数据加载 ==========
 async function loadMeta() {
   const [ps, rts] = await Promise.all([getPropertyList(), getRoomTypeList()])
@@ -246,8 +242,31 @@ async function loadCalendar() {
   try {
     const from = formatYMD(new Date())
     const to = formatYMD(addDays(new Date(), dateRange.value - 1))
+    const [existing, totalRooms] = await Promise.all([
+      queryInventory(selectedRoomTypeId.value, from, to),
+      getRoomCountByType(selectedRoomTypeId.value)
+    ])
+    const existingDates = new Set(existing.map(item => item.stayDate))
+    const missing: InventoryDay[] = []
+    for (let i = 0; i < dateRange.value; i++) {
+      const stayDate = formatYMD(addDays(new Date(), i))
+      if (!existingDates.has(stayDate)) {
+        missing.push({
+          roomTypeId: selectedRoomTypeId.value,
+          stayDate,
+          totalRooms,
+          soldRooms: 0,
+          blockedRooms: 0,
+          status: 'OPEN'
+        })
+      }
+    }
+    for (let i = 0; i < missing.length; i += 10) {
+      await Promise.all(missing.slice(i, i + 10).map(item => upsertInventory(item)))
+    }
+    const ensured = { initialized: missing.length, totalRooms }
     const data = await queryInventory(selectedRoomTypeId.value, from, to)
-    // 补齐缺失日期（默认值）
+    // 服务端会按真实房间数补齐范围；这里仍保留只读兜底，避免异常响应导致日历断档。
     const map = new Map(data.map(d => [d.stayDate, d]))
     const out: InventoryDay[] = []
     for (let i = 0; i < dateRange.value; i++) {
@@ -258,44 +277,17 @@ async function loadCalendar() {
         out.push({
           roomTypeId: selectedRoomTypeId.value,
           stayDate: d,
-          totalRooms: 4,  // 临时占位，下面 upsert 后会立刻刷新
+          totalRooms: ensured.totalRooms,
           soldRooms: 0,
           blockedRooms: 0,
           status: 'OPEN'
         })
       }
     }
-    // 后端还没存盘的日子：主动 upsert 到数据库，让后续 OTA 同步能拿到
-    const missing = out.filter(o => !map.has(o.stayDate))
-    if (missing.length > 0 && currentRoomType.value) {
-      const rt = currentRoomType.value
-      const defaultTotal = Math.max(rt.maxOccupancy || 0, 2)
-      try {
-        // 分批串行 upsert，避免一次性打 30 个请求
-        for (const m of missing) {
-          await upsertInventory({
-            roomTypeId: rt.id,
-            stayDate: m.stayDate,
-            totalRooms: defaultTotal,
-            soldRooms: 0,
-            blockedRooms: 0,
-            status: 'OPEN'
-          }).catch(() => null)
-        }
-        // 重新拉取真实数据
-        const refreshed = await queryInventory(selectedRoomTypeId.value, from, to)
-        const map2 = new Map(refreshed.map(d => [d.stayDate, d]))
-        for (let i = 0; i < out.length; i++) {
-          if (map2.has(out[i].stayDate)) {
-            out[i] = map2.get(out[i].stayDate)!
-          }
-        }
-        ElMessage.success(`已自动初始化 ${missing.length} 天库存`)
-      } catch (e: any) {
-        ElMessage.warning('部分日期自动初始化失败：' + (e?.message || e))
-      }
-    }
     calendar.value = out
+    if (ensured.initialized > 0) {
+      ElMessage.success(`已按 ${ensured.totalRooms} 间真实房间初始化 ${ensured.initialized} 天库存`)
+    }
     lastSyncAt.value = new Date().toISOString()
   } catch (e: any) {
     ElMessage.error('加载房态失败：' + (e?.message || e))

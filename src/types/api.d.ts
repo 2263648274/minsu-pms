@@ -185,6 +185,7 @@ export interface CustomerInfo {
   id: number
   name: string // 姓名
   phone: string // 手机号
+  email?: string
   idCard?: string // 身份证号
   gender?: 'male' | 'female' | 'other'
   birthday?: string
@@ -206,6 +207,7 @@ export interface CustomerListParams extends PageParams {
   name?: string
   phone?: string
   vipLevel?: 0 | 1 | 2 | 3
+  blacklisted?: boolean
 }
 
 // 仪表盘统计

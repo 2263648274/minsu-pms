@@ -1,8 +1,8 @@
 # 民宿 PMS 改造蓝图
 
 > 项目定位：类似百居易的民宿/酒店 PMS 管理系统，专为**民宿管理者**使用，**不对用户开放**。
-> 当前阶段：通用 CRUD 模板 → 民宿 PMS 第一阶段改造。
-> 最后更新：2026-08-13
+> 当前阶段：Phase 2 管理端核心功能已落地，进入 UI 回归与 Phase 3 OTA 前准备。
+> 最后更新：2026-08-16
 
 ---
 
@@ -11,8 +11,8 @@
 | 决策项 | 选择 |
 | --- | --- |
 | 改造节奏 | **分阶段交付**（5 阶段） |
-| OTA 对接 | **先做骨架**，Phase 4 实现具体平台 |
-| 后端策略 | **走平台 API**，不自研后端 |
+| OTA 对接 | **先做骨架**，Phase 3 实现具体平台；本阶段不伪造真实 OTA 成功 |
+| 后端策略 | **Spring Boot + MySQL 为 PMS 权威后端**；Phase 3 再通过适配层调用平台 API |
 | 用户端 | **完全删除** `views/user/`，仅保留管理端 |
 | OTA 平台 | 携程（Ctrip）/ 飞猪（Fliggy）/ 美团（Meituan）/ 抖音（Douyin）/ 淘宝（Taobao） |
 
@@ -23,7 +23,7 @@
 | Phase | 主题 | 验收 |
 | --- | --- | --- |
 | **Phase 1** | 业务抽象 + OTA 适配层骨架 | 类型完整 + build 通过 + 路由可达 |
-| Phase 2 | 管理端核心模块重做（房源/订单/客人/渠道/仪表盘） | 各模块 CRUD + 房价日历 |
+| **Phase 2** | 管理端核心模块重做（房源/订单/客人/渠道/仪表盘） | ✅ 功能完成，等待最终内置浏览器 UI 回归 |
 | Phase 3 | OTA 适配器实现（5 平台） | 鉴权 + 库存/价格推送 + 订单拉取 |
 | Phase 4 | 财务对账 + 报表 | 收入报表 + 渠道佣金 |
 | Phase 5 | 移动端 + 报表（Capacitor + 报表导出） | APK 打包 + 报表导出 |
@@ -117,12 +117,14 @@ interface ChannelAdapter {
 - 扩展 mock 数据：增加 RatePlan、Inventory、ChannelConfig 等
 
 ### 2.7 验收标准
-- [ ] `views/user/` 目录与 `userRoutes` 路由表已彻底删除
-- [ ] 领域类型完整：Property/RoomType/RatePlan/Inventory/Booking/Guest/Channel/Payment
-- [ ] service 层按业务意图暴露（`bookingService.createOrder`），不再按 URL 直调
-- [ ] OTA 适配层骨架：ChannelAdapter 接口 + 5 个平台 adapter 空壳 + ChannelManager 路由
-- [ ] `tsc` 类型检查 + `vite build` 构建双通过
-- [ ] 管理端路由可达，登录后可访问核心 PMS 模块占位页
+- [x] `views/user/` 目录与 `userRoutes` 路由表已彻底删除
+- [x] 领域类型完整：Property/RoomType/RatePlan/Inventory/Booking/Guest/Channel/Payment
+- [x] service 层按业务意图暴露，核心页面不再依赖前端业务 mock
+- [x] OTA 适配层骨架：ChannelAdapter 接口 + 5 个平台 adapter 空壳 + ChannelManager 路由
+- [x] `vue-tsc --noEmit` + `vite build` 双通过
+- [x] ESLint 0 个硬错误
+- [x] 13 项只读核心 API 冒烟通过
+- [ ] 使用架构内置浏览器完成登录、仪表盘、客户详情和库存日历最终 UI 回归
 
 ---
 

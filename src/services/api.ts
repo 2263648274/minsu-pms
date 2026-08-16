@@ -416,10 +416,25 @@ export const getCustomerList = async (params: CustomerListParams): Promise<PageR
     params: {
       current: params.page || 1,
       size: params.pageSize || 20,
-      keyword: params.name || params.phone
+      keyword: params.name || params.phone,
+      vipLevel: params.vipLevel,
+      blacklist: params.blacklisted === undefined ? undefined : params.blacklisted ? 1 : 0
     }
   })
-  return adaptPage(res, mapCustomer)
+  const page = adaptPage(res, mapCustomer)
+  page.list = await Promise.all(page.list.map(async customer => {
+    try {
+      const detail = await request<any>({ url: `/customers/${customer.id}`, method: 'get' })
+      return {
+        ...customer,
+        totalOrders: Number(detail.totalStays || 0),
+        totalSpend: Number(detail.totalSpent || 0)
+      }
+    } catch {
+      return customer
+    }
+  }))
+  return page
 }
 
 export const getAllCustomers = async (): Promise<CustomerInfo[]> => {
@@ -451,19 +466,22 @@ export const createCustomer = async (data: Partial<CustomerInfo>): Promise<{ id:
 }
 
 export const updateCustomer = async (id: number, data: Partial<CustomerInfo>): Promise<boolean> => {
+  const payload: Record<string, unknown> = {}
+  if (data.name !== undefined) payload.name = data.name
+  if (data.phone !== undefined) payload.phone = data.phone
+  if (data.email !== undefined) payload.email = data.email
+  if (data.idCard !== undefined) payload.idCard = data.idCard
+  if (data.gender !== undefined) {
+    payload.gender = data.gender === 'female' ? 'F' : data.gender === 'male' ? 'M' : 'O'
+  }
+  if (data.birthday !== undefined) payload.birthday = data.birthday
+  if (data.vipLevel !== undefined) payload.vipLevel = data.vipLevel
+  if (data.blacklisted !== undefined) payload.blacklist = data.blacklisted ? 1 : 0
+  if (data.remark !== undefined) payload.remarks = data.remark
   await request({
     url: `/customers/${id}`,
     method: 'put',
-    data: {
-      name: data.name,
-      phone: data.phone,
-      email: data.email,
-      idCard: data.idCard,
-      gender: data.gender === 'female' ? 'F' : data.gender === 'male' ? 'M' : 'O',
-      vipLevel: data.vipLevel,
-      blacklist: data.blacklisted ? 1 : 0,
-      remarks: data.remark
-    }
+    data: payload
   })
   return true
 }
@@ -489,7 +507,11 @@ export const getCustomerDetail = async (id: number): Promise<{
     method: 'get'
   })
   return {
-    customer: mapCustomer(res.customer || {}),
+    customer: {
+      ...mapCustomer(res.customer || {}),
+      totalOrders: res.totalStays || 0,
+      totalSpend: Number(res.totalSpent || 0)
+    },
     history: res.history || [],
     totalStays: res.totalStays || 0,
     totalSpent: Number(res.totalSpent || 0)
@@ -593,6 +615,16 @@ export const getRoomTypeList = async (): Promise<RoomTypeInfo[]> => {
     description: r.description || '',
     status: r.status ?? 1
   }))
+}
+
+/** 获取房型下的真实物理房间数量 */
+export const getRoomCountByType = async (roomTypeId: number): Promise<number> => {
+  const res = await request<BackendPage<unknown>>({
+    url: '/rooms',
+    method: 'get',
+    params: { current: 1, size: 1, roomTypeId }
+  })
+  return Number(res.total || 0)
 }
 
 /** 获取所有物业 */
@@ -826,6 +858,8 @@ export interface ChannelView {
   lastStatus: string
   lastError?: string
   lastSyncAt?: string
+  /** 页面临时状态，不提交后端 */
+  __pinging?: boolean
   credentials?: Record<string, string>
 }
 

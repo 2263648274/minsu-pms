@@ -47,7 +47,7 @@
               </div>
               <div class="channel-protocol">{{ ch.protocolLabel }}</div>
               <div class="channel-cta">
-                <el-button size="small" link type="primary" @click.stop="pingChannel(ch)">
+                <el-button v-if="ch.channel" size="small" link type="primary" @click.stop="pingChannel(ch.channel)">
                   <el-icon><Position /></el-icon>检测
                 </el-button>
                 <el-button size="small" link type="primary" @click.stop="openDialogByCode(ch)">
@@ -234,7 +234,7 @@ const formRef = ref<FormInstance>()
 const formRules: FormRules = {
   code: [
     { required: true, message: '请输入平台 code', trigger: 'blur' },
-    { pattern: /^[a-z][a-z0-9_]{1,29}$/, message: '小写字母/数字/下划线，2-30 字符', trigger: 'blur' }
+    { pattern: /^[a-z][a-z0-9_]{1,29}$/i, message: '字母/数字/下划线，2-30 字符', trigger: 'blur' }
   ],
   name: [{ required: true, message: '请输入平台名称', trigger: 'blur' }]
 }
@@ -245,7 +245,7 @@ const connectedCount = computed(() => list.value.filter(c => c.enabled === 1).le
 
 const cardsWithStatus = computed<ChannelCard[]>(() => {
   return channelList.map(meta => {
-    const ch = list.value.find(c => c.code === meta.id)
+    const ch = list.value.find(c => c.code.toLowerCase() === meta.id.toLowerCase())
     const status = ch?.lastStatus || 'UNKNOWN'
     return {
       ...meta,

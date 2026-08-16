@@ -108,13 +108,79 @@
         </div>
       </div>
     </div>
+
+    <div v-loading="loading" class="report-section">
+      <div class="report-card report-card--trend linear-card">
+        <div class="card-header">
+          <div>
+            <span class="text-lg font-semibold text-text-primary">本月营收趋势</span>
+            <div class="card-subtitle">数据来自后端营业报表，按日聚合</div>
+          </div>
+          <el-button link type="primary" @click="goToReports">查看完整报表 →</el-button>
+        </div>
+        <div v-if="revenueTrend.length" class="trend-chart">
+          <div v-for="item in revenueTrend" :key="item.date" class="trend-column">
+            <div class="trend-value">{{ item.revenue > 0 ? formatCompactMoney(item.revenue) : '' }}</div>
+            <div class="trend-track">
+              <div class="trend-bar" :style="{ height: `${trendBarHeight(item.revenue)}%` }"></div>
+            </div>
+            <div class="trend-date">{{ item.date.slice(5) }}</div>
+            <div class="trend-occupancy">{{ formatOccupancy(item.occupancy) }}</div>
+          </div>
+        </div>
+        <el-empty v-else description="本月暂无营收趋势数据" :image-size="72" />
+      </div>
+
+      <div class="report-split-grid">
+        <div class="report-card linear-card">
+          <div class="card-header">
+            <div>
+              <span class="text-lg font-semibold text-text-primary">渠道表现</span>
+              <div class="card-subtitle">订单与营收贡献</div>
+            </div>
+          </div>
+          <div v-if="channelPerformance.length" class="performance-list">
+            <div v-for="item in channelPerformance" :key="item.channelId" class="performance-item">
+              <div class="performance-meta">
+                <span class="performance-name">{{ channelLabel(item.channelId) }}</span>
+                <span>{{ item.orderCount }} 单 · {{ formatMoney(item.revenue) }}</span>
+              </div>
+              <el-progress :percentage="Math.round(item.share * 100)" :stroke-width="8" />
+            </div>
+          </div>
+          <el-empty v-else description="暂无渠道数据" :image-size="64" />
+        </div>
+
+        <div class="report-card linear-card">
+          <div class="card-header">
+            <div>
+              <span class="text-lg font-semibold text-text-primary">房型表现</span>
+              <div class="card-subtitle">房型营收贡献</div>
+            </div>
+          </div>
+          <div v-if="roomTypePerformance.length" class="performance-list">
+            <div v-for="item in roomTypePerformance" :key="item.roomTypeId" class="performance-item">
+              <div class="performance-meta">
+                <span class="performance-name">{{ item.name }}</span>
+                <span>{{ item.orderCount }} 单 · {{ formatMoney(item.revenue) }}</span>
+              </div>
+              <el-progress :percentage="Math.round(item.share * 100)" :stroke-width="8" color="#67c23a" />
+            </div>
+          </div>
+          <el-empty v-else description="暂无房型数据" :image-size="64" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getDashboardStats } from '@/services/api'
+import { ElMessage } from 'element-plus'
+import dashboardService from '@/services/dashboard'
+import type { ReportDailyTrend, ReportChannelStat, ReportRoomTypeStat } from '@/services/report'
+import { channelList } from '@/channels/adapters/registry'
 import type { DashboardStats } from '@/types'
 import {
   TrendCharts,
@@ -135,6 +201,9 @@ interface SpotlightPosition {
 
 const statsData = ref<DashboardStats | null>(null)
 const loading = ref(false)
+const revenueTrend = ref<ReportDailyTrend[]>([])
+const channelPerformance = ref<ReportChannelStat[]>([])
+const roomTypePerformance = ref<ReportRoomTypeStat[]>([])
 
 const stats = ref([
   {
@@ -195,12 +264,40 @@ const handleMouseMove = (event: MouseEvent) => {
 }
 
 const formatMoney = (n: number) => `¥${n.toLocaleString('zh-CN')}`
+const formatCompactMoney = (n: number) => n >= 10000 ? `¥${(n / 10000).toFixed(1)}万` : `¥${Math.round(n)}`
+const formatOccupancy = (value: number) => `${Math.round(Math.min(value, 1) * 100)}%`
+const trendBarHeight = (revenue: number) => {
+  const max = Math.max(...revenueTrend.value.map(item => item.revenue), 1)
+  return revenue > 0 ? Math.max((revenue / max) * 100, 4) : 0
+}
+const channelLabel = (id: string) => {
+  if (id.toUpperCase() === 'DIRECT') return '直销'
+  return channelList.find(channel => channel.id.toLowerCase() === id.toLowerCase())?.displayName || id
+}
+const formatDate = (date: Date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 
 const loadStats = async () => {
   loading.value = true
   try {
-    const data = await getDashboardStats()
+    const today = new Date()
+    const startDate = formatDate(new Date(today.getFullYear(), today.getMonth(), 1))
+    const endDate = formatDate(today)
+    const [data, trend, channels, roomTypes] = await Promise.all([
+      dashboardService.getStats(),
+      dashboardService.getRevenueTrend({ startDate, endDate }),
+      dashboardService.getChannelPerformance({ startDate, endDate }),
+      dashboardService.getRoomTypePerformance({ startDate, endDate })
+    ])
+    revenueTrend.value = trend
+    channelPerformance.value = channels
+    roomTypePerformance.value = roomTypes
     statsData.value = data
+    const monthRevenue = trend.reduce((sum, item) => sum + item.revenue, 0)
     stats.value = [
       {
         label: '今日营收',
@@ -211,8 +308,8 @@ const loadStats = async () => {
       },
       {
         label: '本月营收',
-        value: formatMoney(data.monthRevenue),
-        sub: `累计 ${formatMoney(data.totalRevenue)}`,
+        value: formatMoney(monthRevenue),
+        sub: `截至 ${endDate.slice(5)}`,
         color: 'linear-gradient(135deg, #67c23a, #95d475)',
         icon: TrendCharts
       },
@@ -237,16 +334,19 @@ const loadStats = async () => {
       { status: 'cleaning', label: '打扫中', count: data.cleaningRooms, color: '#e6a23c', icon: Brush },
       { status: 'maintenance', label: '维修中', count: data.maintenanceRooms, color: '#f56c6c', icon: Tools }
     ]
+  } catch (error) {
+    ElMessage.error(error instanceof Error ? error.message : '仪表盘加载失败')
   } finally {
     loading.value = false
   }
 }
 
 const goToRooms = (status?: string) => {
-  router.push({ path: '/admin/rooms', query: status ? { status } : {} })
+  router.push({ path: '/admin/property/rooms', query: status ? { status } : {} })
 }
-const goToOrders = () => router.push('/admin/orders')
-const goToCustomers = () => router.push('/admin/customers')
+const goToOrders = () => router.push('/admin/booking')
+const goToCustomers = () => router.push('/admin/guest')
+const goToReports = () => router.push('/admin/report')
 
 onMounted(() => {
   loadStats()
@@ -340,6 +440,94 @@ onMounted(() => {
     .content-card-side {
       position: relative;
     }
+  }
+
+  .report-section {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    margin-top: 20px;
+  }
+
+  .report-card {
+    overflow: hidden;
+  }
+
+  .card-subtitle {
+    margin-top: 4px;
+    color: var(--text-secondary);
+    font-size: 12px;
+  }
+
+  .trend-chart {
+    display: flex;
+    align-items: stretch;
+    gap: 10px;
+    height: 240px;
+    padding: 20px;
+    overflow-x: auto;
+  }
+
+  .trend-column {
+    display: grid;
+    grid-template-rows: 22px 1fr 18px 18px;
+    flex: 1 0 44px;
+    min-width: 44px;
+    text-align: center;
+  }
+
+  .trend-value,
+  .trend-date,
+  .trend-occupancy {
+    color: var(--text-secondary);
+    font-size: 11px;
+  }
+
+  .trend-track {
+    display: flex;
+    align-items: flex-end;
+    justify-content: center;
+    min-height: 130px;
+    border-bottom: 1px solid var(--border-default);
+  }
+
+  .trend-bar {
+    width: min(26px, 65%);
+    min-height: 0;
+    border-radius: 6px 6px 2px 2px;
+    background: linear-gradient(180deg, #409eff, #79bbff);
+    transition: height 0.25s ease;
+  }
+
+  .trend-occupancy {
+    color: #67c23a;
+  }
+
+  .report-split-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 20px;
+  }
+
+  .performance-list {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 20px;
+  }
+
+  .performance-meta {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 8px;
+    color: var(--text-secondary);
+    font-size: 13px;
+  }
+
+  .performance-name {
+    color: var(--text-primary);
+    font-weight: 600;
   }
 
   .room-status-grid {
@@ -454,6 +642,10 @@ onMounted(() => {
     }
 
     .content-grid {
+      grid-template-columns: 1fr;
+    }
+
+    .report-split-grid {
       grid-template-columns: 1fr;
     }
 
