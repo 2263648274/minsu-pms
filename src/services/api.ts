@@ -317,9 +317,13 @@ export const getAllOrders = async (): Promise<OrderInfo[]> => {
 }
 
 export const createOrder = async (data: Partial<OrderInfo>): Promise<{ id: number }> => {
+  const idempotencyKey = (data as any).idempotencyKey
+    || globalThis.crypto?.randomUUID?.()
+    || `web-${Date.now()}-${Math.random().toString(16).slice(2)}`
   const res = await request<any>({
     url: '/bookings',
     method: 'post',
+    headers: { 'Idempotency-Key': idempotencyKey },
     data: {
       propertyId: (data as any).propertyId || 1,
       roomTypeId: (data as any).roomId || (data as any).roomTypeId || 1,

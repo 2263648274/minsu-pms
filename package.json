@@ -9,6 +9,7 @@
     "typecheck": "vue-tsc --noEmit",
     "test:api": "node scripts/api-smoke.mjs",
     "test:tenant": "node scripts/tenant-isolation-smoke.mjs",
+    "test:booking-concurrency": "node scripts/booking-concurrency-smoke.mjs",
     "test:quality": "npm run lint && npm run typecheck && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",

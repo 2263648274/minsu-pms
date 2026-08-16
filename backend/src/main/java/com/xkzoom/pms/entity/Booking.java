@@ -16,6 +16,8 @@ public class Booking {
     @TableId(type = IdType.AUTO)
     private Long id;
     private String bookingNo;
+    private String idempotencyKey;
+    private String requestFingerprint;
     private Long propertyId;
     private Long roomTypeId;
     private Long ratePlanId;
@@ -32,6 +34,7 @@ public class Booking {
     private String source;
     private String status;
     private String paymentStatus;
+    private Boolean inventoryReserved;
     private String guestName;
     private String guestPhone;
     private String specialRequests;
