@@ -8,6 +8,8 @@ server:
     context-path: /
 
 spring:
+  autoconfigure:
+    exclude: org.springframework.boot.autoconfigure.security.servlet.UserDetailsServiceAutoConfiguration
   profiles:
     active: ${SPRING_PROFILES_ACTIVE:dev}
   application:

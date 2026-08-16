@@ -33,6 +33,9 @@ pms:
     prefix: "Bearer "
   cors:
     allowed-origins: "http://localhost:3000,http://127.0.0.1:3000,http://localhost:5173,http://127.0.0.1:5173"
+  secrets:
+    # Local-only fallback. Production has no committed secret fallback.
+    channel-key: ${PMS_CHANNEL_SECRET_KEY:xkzoom-local-channel-key-change-before-production}
 
 server:
   port: 8090

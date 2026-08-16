@@ -31,6 +31,6 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(Exception.class)
     public Result<Void> handleAny(Exception e) {
         log.error("系统异常", e);
-        return Result.serverError(e.getClass().getSimpleName() + ": " + e.getMessage());
+        return Result.serverError("系统内部错误，请联系管理员");
     }
 }

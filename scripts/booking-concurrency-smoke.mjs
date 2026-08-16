@@ -45,6 +45,7 @@ async function request(path, options = {}) {
 
 function cleanup() {
   sql(`
+    DELETE FROM audit_log WHERE tenant_id IN (SELECT id FROM tenant WHERE code = '${tenantCode}');
     DELETE b FROM booking b
       JOIN tenant t ON t.id = b.tenant_id
       WHERE t.code = '${tenantCode}';

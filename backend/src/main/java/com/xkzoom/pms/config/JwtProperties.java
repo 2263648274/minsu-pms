@@ -5,7 +5,8 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.stereotype.Component;
 
 /**
- * JWT 配置属性（从 application-dev.yml 的 pms.jwt 节点读）
+ * JWT configuration. Production values must be supplied through environment
+ * variables rather than committed defaults.
  */
 @Data
 @Component

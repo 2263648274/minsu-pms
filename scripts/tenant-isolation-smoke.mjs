@@ -54,6 +54,7 @@ async function login(username, password) {
 
 function cleanup() {
   sql(`
+    DELETE FROM audit_log WHERE tenant_id IN (SELECT id FROM tenant WHERE code = '${tenantCode}');
     DELETE FROM property WHERE code = '${propertyCode}';
     DELETE FROM user WHERE username = '${testUsername}';
     DELETE FROM tenant WHERE code = '${tenantCode}';
