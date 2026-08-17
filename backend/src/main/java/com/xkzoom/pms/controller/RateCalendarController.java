@@ -2,6 +2,7 @@ package com.xkzoom.pms.controller;
 
 import com.xkzoom.pms.common.Result;
 import com.xkzoom.pms.dto.RateCalendarBatchRequest;
+import com.xkzoom.pms.dto.RateCalendarBatchResult;
 import com.xkzoom.pms.dto.RateCalendarUpsertRequest;
 import com.xkzoom.pms.entity.RateCalendar;
 import com.xkzoom.pms.service.RateCalendarService;
@@ -35,7 +36,15 @@ public class RateCalendarController {
     }
 
     @PostMapping("/batch")
-    public Result<Integer> batch(@Valid @RequestBody RateCalendarBatchRequest req) {
+    public Result<RateCalendarBatchResult> batch(@Valid @RequestBody RateCalendarBatchRequest req) {
         return Result.ok(service.batchUpdate(req));
+    }
+
+    /** 清除单日显式覆盖：删除该计划该日的 rate_calendar 行，前端回落房型基础价 */
+    @DeleteMapping
+    public Result<Boolean> clear(
+            @RequestParam Long ratePlanId,
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate stayDate) {
+        return Result.ok(service.clearOverride(ratePlanId, stayDate));
     }
 }

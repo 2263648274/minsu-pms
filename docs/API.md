@@ -234,7 +234,8 @@
 | --- | --- | --- |
 | GET | `/rate-calendar?roomTypeId=1&from=2026-08-01&to=2026-08-31&ratePlanId=1` | 区间查询 |
 | POST | `/rate-calendar` | 单日 upsert |
-| POST | `/rate-calendar/batch` | 批量调价/关房 |
+| POST | `/rate-calendar/batch` | 批量调价/关房（skipOverridden 语义见下） |
+| DELETE | `/rate-calendar?ratePlanId=1&stayDate=2026-08-15` | 清除单日显式覆盖 |
 
 **GET 响应**：`RateCalendar[]`
 ```json
@@ -255,13 +256,24 @@
 **POST batch Request**
 ```json
 {
-  "roomTypeId": 1, "from": "2026-08-15", "to": "2026-08-21",
-  "mode": "PERCENT",   // FIXED / PERCENT / SET
-  "value": 20,         // PERCENT=百分比, FIXED/SET=绝对值
+  "roomTypeId": 1, "ratePlanId": 1,
+  "fromDate": "2026-08-15", "toDate": "2026-08-21",
+  "mode": "PERCENT_OFF",   // FIXED / PERCENT_OFF / INCREASE
+  "value": 10,             // FIXED/INCREASE=绝对金额; PERCENT_OFF=折扣(10 表示 9 折, 1-99 整数)
+  "skipOverridden": false, // true=保留已有显式覆盖, 只为缺失日期创建; false/null=范围内每天 upsert
   "closeRoom": false,
-  "remarks": "周末上浮20%"
+  "remarks": "周末上浮"
 }
 ```
+
+**POST batch 响应**：范围内每天按三向计数
+```json
+{ "inserted": 5, "updated": 2, "skipped": 0 }
+```
+
+约束：`fromDate <= toDate` 且范围一次最多 366 天；`ratePlanId` 必须属于当前租户且与 `roomTypeId` 匹配（否则统一报“房价计划不存在或无权访问”，不泄露存在性）；缺行日期在 FIXED 用 `value`、比例/金额模式回落计划 `basePrice` 计算。
+
+**DELETE 响应**：`boolean`。删除当前租户、指定计划、指定日期的显式覆盖行；该日无行时幂等返回 `false`。行删除后前端查询回落房型基础价并标记 `overridden=false`。
 
 ---
 

@@ -2,7 +2,7 @@
  * 房价管理 - API 客户端
  *
  * Phase 2.5（本 commit）：
- * - listRoomTypes / queryRateCalendar / upsertDailyRate / deleteDailyRate(恢复基础价) /
+ * - listRoomTypes / queryRateCalendar / upsertDailyRate / deleteDailyRate(删除显式覆盖行) /
  *   batchUpdateRates 已切到真实后端（http://localhost:8090/api/*，由 Vite 代理）
  * - RatePlan 列表与 CRUD 已接真实后端；前端字段通过 adapter 映射到后端模型
  *
@@ -13,10 +13,12 @@
  * - GET  /api/room-types/by-property/{propertyId} → RoomType[]
  * - GET  /api/rate-calendar?roomTypeId&from&to[&ratePlanId] → RateCalendar[]
  * - POST /api/rate-calendar body=RateCalendarUpsertRequest → RateCalendar
- * - POST /api/rate-calendar/batch body=RateCalendarBatchRequest → Integer
+ * - POST /api/rate-calendar/batch body=RateCalendarBatchRequest → { inserted, updated, skipped }
+ * - DELETE /api/rate-calendar?ratePlanId&stayDate → boolean（清除单日显式覆盖）
  *
  * 缺数据日期兜底：后端 query 不做兜底，前端保留 mock 兜底逻辑（用房型基础价填充缺日期）。
- * 单日"清除"语义：后端无 DELETE 端点，前端用 upsert 把价格回填基础价来模拟。
+ * 单日"清除"语义：后端删除该计划该日的 rate_calendar 行；行删除后本文件
+ * queryRateCalendar 的缺行兜底自动回落房型基础价并标记 overridden=false。
  */
 
 import type {
@@ -24,6 +26,7 @@ import type {
   DailyRate,
   DailyRateUpdate,
   DailyRateBatchUpdate,
+  DailyRateBatchResult,
   RateCalendar,
   RateCalendarQuery
 } from '@/types/domain/rate'
@@ -415,28 +418,31 @@ export async function upsertDailyRate(payload: DailyRateUpdate): Promise<DailyRa
 }
 
 /**
- * 单日"清除"：后端无 DELETE 端点，模拟语义为"恢复基础价"。
- * 视觉上等价于原 mock —— 日历格看到基础价，备注标记"已清除"。
+ * 单日"清除"：调用后端 DELETE 端点删除该计划该日的显式覆盖行。
+ * 行删除后 queryRateCalendar 的缺行兜底会显示房型基础价且 overridden=false。
+ * 该房型无任何计划时必然无显式覆盖，幂等视为清除成功（读/清除操作不隐式建计划）。
  */
 export async function deleteDailyRate(roomTypeId: ID, date: DateString): Promise<boolean> {
-  const roomTypes = await listRoomTypes(1)
-  const rt = roomTypes.find(t => String(t.id) === String(roomTypeId))
-  const baseCents = rt ? yuanToCents(rt.basePrice) : 0
-  await upsertDailyRate({
-    date,
-    roomTypeId,
-    price: { amount: baseCents, currency: 'CNY' },
-    overrideReason: '已清除'
+  const ratePlanId = await findFirstPlanId(roomTypeId)
+  if (ratePlanId === null) return true
+  await http<boolean>(`/rate-calendar?ratePlanId=${ratePlanId}&stayDate=${date}`, {
+    method: 'DELETE'
   })
   return true
 }
 
+/** 找该房型第一个计划 id；只读不创建，无计划返回 null */
+async function findFirstPlanId(roomTypeId: ID): Promise<ID | null> {
+  const list = await http<BackendRatePlan[]>(`/rate-plans/by-room-type/${roomTypeId}`)
+  return list.length > 0 ? list[0].id : null
+}
+
 /**
- * 批量调价：后端 FIXED 模式，前端 skipOverridden 仅作为备注标记
- * （后端 FIXED 模式会覆盖所有日期，包括人工已覆盖的；如需真正跳过，
- * 需要后端补 SKIP_OVERRIDDEN 模式 —— 留给 Phase 3+）。
+ * 批量调价：后端 FIXED 模式 + 真实 skipOverridden 语义。
+ * skipOverridden=true 时后端保留已有显式覆盖行，只为缺失日期创建记录；
+ * 返回按天三向计数 { inserted, updated, skipped }。
  */
-export async function batchUpdateRates(payload: DailyRateBatchUpdate): Promise<number> {
+export async function batchUpdateRates(payload: DailyRateBatchUpdate): Promise<DailyRateBatchResult> {
   const ratePlanId = await ensureDefaultPlanId(payload.roomTypeId, 1)
   const body = {
     ratePlanId,
@@ -445,10 +451,11 @@ export async function batchUpdateRates(payload: DailyRateBatchUpdate): Promise<n
     toDate: payload.endDate,
     mode: 'FIXED',
     value: centsToYuan(payload.price.amount),
+    skipOverridden: payload.skipOverridden === true,
     closeRoom: false,
-    remarks: payload.skipOverridden ? 'frontend:跳过已覆盖' : 'frontend:批量覆盖'
+    remarks: null
   }
-  return await http<number>('/rate-calendar/batch', {
+  return await http<DailyRateBatchResult>('/rate-calendar/batch', {
     method: 'POST',
     body: JSON.stringify(body)
   })

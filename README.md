@@ -189,6 +189,7 @@ npm run test:api      # 对运行中的后端执行 13 项只读核心 API 冒�
 npm run test:tenant   # 真实双租户隔离冒烟
 npm run test:booking-concurrency # 订单幂等、并发取消与库存竞争
 npm run test:security # RBAC、OTA 密钥加密/脱敏与审计
+npm run test:rate-calendar # 房价日历清除覆盖/跳过已覆盖/并发唯一性
 npm run test:quality  # lint + typecheck + build
 ```
 

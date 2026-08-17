@@ -11,6 +11,7 @@
     "test:tenant": "node scripts/tenant-isolation-smoke.mjs",
     "test:booking-concurrency": "node scripts/booking-concurrency-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
+    "test:rate-calendar": "node scripts/rate-calendar-smoke.mjs",
     "test:quality": "npm run lint && npm run typecheck && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",
