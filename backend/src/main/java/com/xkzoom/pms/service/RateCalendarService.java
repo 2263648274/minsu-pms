@@ -10,7 +10,6 @@ import com.xkzoom.pms.exception.BusinessException;
 import com.xkzoom.pms.mapper.RateCalendarMapper;
 import com.xkzoom.pms.mapper.RatePlanMapper;
 import lombok.RequiredArgsConstructor;
-import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,33 +42,20 @@ public class RateCalendarService {
         return mapper.selectList(w);
     }
 
-    /** 单日 upsert */
+    /** 单日 upsert：原子写入，并发下靠租户级唯一键幂等，无重复行 */
     @Transactional(rollbackFor = Exception.class)
     public RateCalendar upsert(RateCalendarUpsertRequest req) {
         requirePlanAccessible(req.getRatePlanId(), req.getRoomTypeId());
-        RateCalendar existing = selectByPlanAndDate(req.getRatePlanId(), req.getStayDate());
-        LocalDateTime now = LocalDateTime.now();
-        if (existing == null) {
-            RateCalendar r = new RateCalendar();
-            r.setRatePlanId(req.getRatePlanId());
-            r.setRoomTypeId(req.getRoomTypeId());
-            r.setStayDate(req.getStayDate());
-            r.setPrice(req.getPrice());
-            r.setCurrency("CNY");
-            r.setAvailable(req.getAvailable() != null ? req.getAvailable() : 1);
-            r.setMinNights(req.getMinNights());
-            r.setRemarks(req.getRemarks());
-            r.setCreatedAt(now);
-            r.setUpdatedAt(now);
-            return insertOrMergeOnDuplicateKey(r);
-        }
-        existing.setPrice(req.getPrice());
-        if (req.getAvailable() != null) existing.setAvailable(req.getAvailable());
-        if (req.getMinNights() != null) existing.setMinNights(req.getMinNights());
-        existing.setRemarks(req.getRemarks());
-        existing.setUpdatedAt(now);
-        mapper.updateById(existing);
-        return existing;
+        mapper.upsertRow(
+                req.getRatePlanId(),
+                req.getRoomTypeId(),
+                req.getStayDate(),
+                req.getPrice(),
+                req.getAvailable(),
+                req.getMinNights(),
+                req.getRemarks(),
+                LocalDateTime.now());
+        return selectByPlanAndDate(req.getRatePlanId(), req.getStayDate());
     }
 
     /**
@@ -123,17 +109,15 @@ public class RateCalendarService {
             BigDecimal base = existing != null ? existing.getPrice() : plan.getBasePrice();
             BigDecimal newPrice = computePrice(req, d, base);
             if (existing == null) {
-                RateCalendar r = new RateCalendar();
-                r.setRatePlanId(req.getRatePlanId());
-                r.setRoomTypeId(req.getRoomTypeId());
-                r.setStayDate(d);
-                r.setPrice(newPrice);
-                r.setCurrency("CNY");
-                r.setAvailable(Boolean.TRUE.equals(req.getCloseRoom()) ? 0 : 1);
-                r.setRemarks(req.getRemarks());
-                r.setCreatedAt(now);
-                r.setUpdatedAt(now);
-                insertOrMergeOnDuplicateKey(r);
+                mapper.upsertRow(
+                        req.getRatePlanId(),
+                        req.getRoomTypeId(),
+                        d,
+                        newPrice,
+                        Boolean.TRUE.equals(req.getCloseRoom()) ? 0 : 1,
+                        null,
+                        req.getRemarks(),
+                        now);
                 inserted++;
             } else {
                 existing.setPrice(newPrice);
@@ -210,30 +194,5 @@ public class RateCalendarService {
                 new LambdaQueryWrapper<RateCalendar>()
                         .eq(RateCalendar::getRatePlanId, ratePlanId)
                         .eq(RateCalendar::getStayDate, stayDate));
-    }
-
-    /**
-     * 并发兜底：两个请求同时为同一 (tenant, plan, date) 插入时，租户级唯一键
-     * uk_rate_calendar_tenant_date 会让后到者抛 DuplicateKeyException；此时改为
-     * 当前读赢家行并按本次请求合并，保证幂等且不产生重复记录。必须用
-     * FOR UPDATE 当前读——普通快照读在 REPEATABLE READ 下看不到赢家刚提交的行。
-     */
-    private RateCalendar insertOrMergeOnDuplicateKey(RateCalendar r) {
-        try {
-            mapper.insert(r);
-            return r;
-        } catch (DuplicateKeyException e) {
-            RateCalendar winner = mapper.selectByPlanAndDateForUpdate(r.getRatePlanId(), r.getStayDate());
-            if (winner == null) {
-                throw e;
-            }
-            winner.setPrice(r.getPrice());
-            if (r.getAvailable() != null) winner.setAvailable(r.getAvailable());
-            if (r.getMinNights() != null) winner.setMinNights(r.getMinNights());
-            winner.setRemarks(r.getRemarks());
-            winner.setUpdatedAt(r.getUpdatedAt());
-            mapper.updateById(winner);
-            return winner;
-        }
     }
 }

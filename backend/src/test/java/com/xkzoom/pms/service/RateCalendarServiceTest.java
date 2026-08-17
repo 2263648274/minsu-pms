@@ -14,10 +14,10 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.dao.DuplicateKeyException;
 
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.time.LocalDateTime;
 import java.util.List;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
@@ -25,6 +25,8 @@ import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.isNull;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -51,6 +53,13 @@ class RateCalendarServiceTest {
 
     private RateCalendarService service() {
         return new RateCalendarService(rateCalendarMapper, ratePlanMapper);
+    }
+
+    private void verifyNoWrites() {
+        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verify(rateCalendarMapper, never()).updateById(any(RateCalendar.class));
+        verify(rateCalendarMapper, never()).upsertRow(
+                any(), any(), any(), any(), any(), any(), any(), any());
     }
 
     // ========== 场景 A：清除单日覆盖 ==========
@@ -113,17 +122,14 @@ class RateCalendarServiceTest {
         assertEquals(0, result.getUpdated());
         assertEquals(1, result.getSkipped());
 
-        ArgumentCaptor<RateCalendar> inserted = ArgumentCaptor.forClass(RateCalendar.class);
-        verify(rateCalendarMapper, times(2)).insert(inserted.capture());
+        ArgumentCaptor<LocalDate> dates = ArgumentCaptor.forClass(LocalDate.class);
+        ArgumentCaptor<BigDecimal> prices = ArgumentCaptor.forClass(BigDecimal.class);
+        verify(rateCalendarMapper, times(2)).upsertRow(
+                eq(PLAN_ID), eq(ROOM_TYPE_ID), dates.capture(), prices.capture(),
+                eq(1), isNull(), isNull(), any(LocalDateTime.class));
         assertEquals(List.of("2026-08-01", "2026-08-03"),
-                inserted.getAllValues().stream().map(r -> r.getStayDate().toString()).toList());
-        inserted.getAllValues().forEach(r -> {
-            assertEquals(PLAN_ID, r.getRatePlanId());
-            assertEquals(ROOM_TYPE_ID, r.getRoomTypeId());
-            assertEquals(new BigDecimal("400.00"), r.getPrice());
-            assertEquals("CNY", r.getCurrency());
-            assertEquals(1, r.getAvailable());
-        });
+                dates.getAllValues().stream().map(Object::toString).toList());
+        prices.getAllValues().forEach(p -> assertEquals(new BigDecimal("400.00"), p));
         // 已覆盖日不允许被改动
         verify(rateCalendarMapper, never()).updateById(any(RateCalendar.class));
     }
@@ -167,10 +173,10 @@ class RateCalendarServiceTest {
         assertEquals(1, result.getInserted());
         assertEquals(1, result.getUpdated());
 
-        ArgumentCaptor<RateCalendar> inserted = ArgumentCaptor.forClass(RateCalendar.class);
-        verify(rateCalendarMapper).insert(inserted.capture());
         // 缺失日：500.00 × 0.9
-        assertEquals(new BigDecimal("450.00"), inserted.getValue().getPrice());
+        verify(rateCalendarMapper).upsertRow(
+                eq(PLAN_ID), eq(ROOM_TYPE_ID), eq(LocalDate.of(2026, 8, 1)),
+                eq(new BigDecimal("450.00")), eq(1), isNull(), isNull(), any(LocalDateTime.class));
         // 已有日：688.00 × 0.9
         assertEquals(new BigDecimal("619.20"), existing.getPrice());
     }
@@ -184,8 +190,7 @@ class RateCalendarServiceTest {
                 batchReq(LocalDate.of(2026, 8, 5), LocalDate.of(2026, 8, 1), "FIXED", new BigDecimal("400.00"))));
 
         assertEquals("起始日期不能晚于结束日期", e.getMessage());
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
-        verify(rateCalendarMapper, never()).updateById(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
@@ -205,8 +210,7 @@ class RateCalendarServiceTest {
                 batchReq(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "MAGIC", new BigDecimal("400.00"))));
 
         assertEquals("不支持的批量模式: MAGIC", e.getMessage());
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
-        verify(rateCalendarMapper, never()).updateById(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
@@ -222,7 +226,7 @@ class RateCalendarServiceTest {
 
         assertEquals("房价计划与房型不匹配", e.getMessage());
         verify(rateCalendarMapper, never()).selectList(any());
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
@@ -232,7 +236,7 @@ class RateCalendarServiceTest {
                 batchReq(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "PERCENT_OFF", new BigDecimal("150"))));
         assertThrows(BusinessException.class, () -> service().batchUpdate(
                 batchReq(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "PERCENT_OFF", new BigDecimal("0"))));
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
@@ -240,7 +244,7 @@ class RateCalendarServiceTest {
     void batchRejectsFixedModeWithoutValue() {
         assertThrows(BusinessException.class, () -> service().batchUpdate(
                 batchReq(LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 2), "FIXED", null)));
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
@@ -256,10 +260,10 @@ class RateCalendarServiceTest {
 
         assertEquals("房价计划不存在或无权访问", e.getMessage());
         verify(rateCalendarMapper, never()).selectList(any());
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
-    // ========== 场景 E：单日 upsert 的关联校验与并发幂等 ==========
+    // ========== 场景 E：单日 upsert 的关联校验与并发安全 ==========
 
     @Test
     @DisplayName("单日 upsert：计划与房型不匹配被拒绝")
@@ -272,30 +276,30 @@ class RateCalendarServiceTest {
         BusinessException e = assertThrows(BusinessException.class, () -> service().upsert(req));
 
         assertEquals("房价计划与房型不匹配", e.getMessage());
-        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verifyNoWrites();
     }
 
     @Test
-    @DisplayName("并发撞租户级唯一键：insert 抛 DuplicateKeyException 后当前读赢家行并合并，不产生重复行")
-    void upsertFallsBackToUpdateOnDuplicateKey() {
+    @DisplayName("单日 upsert 走原子 upsertRow（INSERT ... ON DUPLICATE KEY UPDATE），写后读回当前行")
+    void upsertDelegatesToAtomicUpsertSql() {
         when(ratePlanMapper.selectById(PLAN_ID)).thenReturn(plan("500.00"));
-        RateCalendar winner = row(LocalDate.of(2026, 8, 1), "688.00");
-        winner.setId(55L);
-        // 初始快照读未命中 → insert 撞唯一键 → FOR UPDATE 当前读拿到并发赢家
-        when(rateCalendarMapper.selectOne(any())).thenReturn(null);
-        when(rateCalendarMapper.selectByPlanAndDateForUpdate(PLAN_ID, LocalDate.of(2026, 8, 1)))
-                .thenReturn(winner);
-        when(rateCalendarMapper.insert(any(RateCalendar.class)))
-                .thenThrow(new DuplicateKeyException("uk_rate_calendar_tenant_date"));
+        RateCalendar stored = row(LocalDate.of(2026, 8, 1), "400.00");
+        stored.setId(55L);
+        when(rateCalendarMapper.selectOne(any())).thenReturn(stored);
+        when(rateCalendarMapper.upsertRow(
+                any(), any(), any(), any(), any(), any(), any(), any(LocalDateTime.class)))
+                .thenReturn(1);
 
         RateCalendar saved = service().upsert(upsertReq(LocalDate.of(2026, 8, 1), "400.00"));
 
         assertEquals(55L, saved.getId());
         assertEquals(new BigDecimal("400.00"), saved.getPrice());
-        // 撞键后只允许一次 insert 尝试 + 一次当前读 + 一次回退更新，不允许重复插入
-        verify(rateCalendarMapper, times(1)).insert(any(RateCalendar.class));
-        verify(rateCalendarMapper).selectByPlanAndDateForUpdate(PLAN_ID, LocalDate.of(2026, 8, 1));
-        verify(rateCalendarMapper).updateById(winner);
+        // 单条原子语句，无先查后插，不依赖应用层捕获唯一键冲突
+        verify(rateCalendarMapper).upsertRow(
+                eq(PLAN_ID), eq(ROOM_TYPE_ID), eq(LocalDate.of(2026, 8, 1)),
+                eq(new BigDecimal("400.00")), eq(1), isNull(), isNull(), any(LocalDateTime.class));
+        verify(rateCalendarMapper, never()).insert(any(RateCalendar.class));
+        verify(rateCalendarMapper, never()).updateById(any(RateCalendar.class));
     }
 
     // ========== 构造工具 ==========
