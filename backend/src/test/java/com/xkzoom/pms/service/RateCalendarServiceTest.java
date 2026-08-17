@@ -276,13 +276,15 @@ class RateCalendarServiceTest {
     }
 
     @Test
-    @DisplayName("并发撞租户级唯一键：insert 抛 DuplicateKeyException 后回退为更新，不产生重复行")
+    @DisplayName("并发撞租户级唯一键：insert 抛 DuplicateKeyException 后当前读赢家行并合并，不产生重复行")
     void upsertFallsBackToUpdateOnDuplicateKey() {
         when(ratePlanMapper.selectById(PLAN_ID)).thenReturn(plan("500.00"));
         RateCalendar winner = row(LocalDate.of(2026, 8, 1), "688.00");
         winner.setId(55L);
-        // 第一次 selectOne 未命中 → insert 撞唯一键 → 第二次 selectOne 拿到并发赢家
-        when(rateCalendarMapper.selectOne(any())).thenReturn(null, winner);
+        // 初始快照读未命中 → insert 撞唯一键 → FOR UPDATE 当前读拿到并发赢家
+        when(rateCalendarMapper.selectOne(any())).thenReturn(null);
+        when(rateCalendarMapper.selectByPlanAndDateForUpdate(PLAN_ID, LocalDate.of(2026, 8, 1)))
+                .thenReturn(winner);
         when(rateCalendarMapper.insert(any(RateCalendar.class)))
                 .thenThrow(new DuplicateKeyException("uk_rate_calendar_tenant_date"));
 
@@ -290,8 +292,9 @@ class RateCalendarServiceTest {
 
         assertEquals(55L, saved.getId());
         assertEquals(new BigDecimal("400.00"), saved.getPrice());
-        // 撞键后只允许一次 insert 尝试 + 一次回退更新，不允许重复插入
+        // 撞键后只允许一次 insert 尝试 + 一次当前读 + 一次回退更新，不允许重复插入
         verify(rateCalendarMapper, times(1)).insert(any(RateCalendar.class));
+        verify(rateCalendarMapper).selectByPlanAndDateForUpdate(PLAN_ID, LocalDate.of(2026, 8, 1));
         verify(rateCalendarMapper).updateById(winner);
     }
 

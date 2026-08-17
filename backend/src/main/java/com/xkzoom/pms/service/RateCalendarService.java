@@ -215,14 +215,15 @@ public class RateCalendarService {
     /**
      * 并发兜底：两个请求同时为同一 (tenant, plan, date) 插入时，租户级唯一键
      * uk_rate_calendar_tenant_date 会让后到者抛 DuplicateKeyException；此时改为
-     * 读取赢家行并按本次请求合并，保证幂等且不产生重复记录。
+     * 当前读赢家行并按本次请求合并，保证幂等且不产生重复记录。必须用
+     * FOR UPDATE 当前读——普通快照读在 REPEATABLE READ 下看不到赢家刚提交的行。
      */
     private RateCalendar insertOrMergeOnDuplicateKey(RateCalendar r) {
         try {
             mapper.insert(r);
             return r;
         } catch (DuplicateKeyException e) {
-            RateCalendar winner = selectByPlanAndDate(r.getRatePlanId(), r.getStayDate());
+            RateCalendar winner = mapper.selectByPlanAndDateForUpdate(r.getRatePlanId(), r.getStayDate());
             if (winner == null) {
                 throw e;
             }
