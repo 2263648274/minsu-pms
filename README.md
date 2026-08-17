@@ -12,7 +12,9 @@
 > 民宿 PMS（Property Management System）管理系统，专为民宿管理者使用，**不对用户开放**。
 > 类似百居易的全栈方案：房源管理、库存房态、房价管理、订单管理、OTA 渠道分发、财务对账、营业报表。
 >
-> **当前开发约定：** OTA 真实平台接入暂缓；非 OTA 模块按“实现 → 内置浏览器验收 → 单独 commit”推进。
+> **当前状态（2026-08）：** Phase 2 核心链路已贯通，含内置浏览器 UI 回归和家庭旅馆试点验收；
+> 第二阶段加固（事务库存、租户隔离、RBAC + 凭据保护、生产可观测性、非破坏迁移）已全部完成。
+> OTA 真实平台接入仍按计划排在 Phase 3，统一通过 `src/channels/` 适配层接入。
 
 ---
 
@@ -31,7 +33,13 @@
 | 渠道同步日志 | ✅ Phase 2 数据层 | 列表、详情、统计与调试写入均接后端 `/api/sync-logs`；真实 OTA 同步事件留待 Phase 3 |
 | 财务对账 | ✅ Phase 2 接线 | 已接后端 `/api/finance/stats`、`/api/finance/channel-settlements`、`/api/finance/order-settlements`；支持按渠道聚合、订单明细与 CSV 导出 |
 | 营业报表 | ✅ Phase 2 接线 | 已接后端 `/api/reports/overview`、`trend`、`channel-breakdown`、`roomtype-breakdown`；展示 KPI、趋势及渠道 / 房型贡献 |
-| 非 OTA mock 收尾 | ✅ 功能完成 / 🚧 UI 回归 | 非 OTA 主调用链已切真实后端；质量门通过，仍需在可用的内置浏览器会话完成最终页面回归 |
+| 非 OTA mock 收尾 | ✅ 完成 | 非 OTA 主调用链已切真实后端；质量门与内置浏览器 UI 回归均通过 |
+| 库存预订并发 | ✅ 已加固 | 库存预订改为事务化处理，关键路径覆盖幂等与并发竞争 |
+| 租户级数据隔离 | ✅ 已加固 | 跨租户数据访问受约束，配合 `test:tenant` 双租户冒烟校验 |
+| 角色权限与凭据 | ✅ 已加固 | RBAC 收紧；OTA 密钥加密 / 脱敏、审计可见；`test:security` 通过 |
+| 生产运行与可观测性 | ✅ 已加固 | 健康检查、结构化日志、关键指标暴露，配套 `docs/operations-runbook.md` |
+| 数据库迁移安全 | ✅ 已加固 | 启动迁移改为非破坏性方式，避免误删或覆盖业务数据 |
+| 家庭旅馆试点验收 | ✅ 已记录 | 试点民宿已按核心业务路径完成验收，材料见 [`docs/pilot-acceptance.md`](docs/pilot-acceptance.md) |
 
 ---
 
@@ -163,12 +171,13 @@ npx cap open android   # 用 Android Studio 打开
 | Phase | 主题 | 状态 |
 | --- | --- | --- |
 | **Phase 1** | 业务抽象 + OTA 适配层骨架 | ✅ 已完成 |
-| **Phase 2** | 管理端核心模块 + 非 OTA mock 收尾 | ✅ 功能完成；lint、类型检查、构建及只读 API 冒烟通过，等待最终内置浏览器 UI 回归 |
+| **Phase 2** | 管理端核心模块 + 非 OTA mock 收尾 | ✅ 完成：核心链路、内置浏览器 UI 回归、家庭旅馆试点验收均已落地 |
+| **Phase 2.5** | 第二阶段加固（事务/隔离/RBAC/可观测/非破坏迁移） | ✅ 完成；与 Phase 2 一并纳入交付基线 |
 | **Phase 3** | OTA 适配器实现（5 平台） | ⏸️ 暂缓，按计划最后处理 |
 | **Phase 4** | 财务对账 + 营业报表深度能力 | 🚧 基础对账、KPI、趋势、渠道/房型贡献和 CSV 已完成；深度财务能力后续扩展 |
 | **Phase 5** | 移动端优化 + 报表导出 | 🚧 Capacitor Android 壳与 CSV 已有；APK 发布验收和移动端专项优化未完成 |
 
-详细规划：[docs/phase-plan.md](docs/phase-plan.md)
+详细规划：[docs/phase-plan.md](docs/phase-plan.md)；试点验收：[docs/pilot-acceptance.md](docs/pilot-acceptance.md)；生产运维：[docs/operations-runbook.md](docs/operations-runbook.md)。
 
 ### 质量检查
 
