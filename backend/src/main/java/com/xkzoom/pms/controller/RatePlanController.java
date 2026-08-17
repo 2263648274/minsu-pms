@@ -5,10 +5,10 @@ import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.xkzoom.pms.common.Result;
 import com.xkzoom.pms.entity.RatePlan;
 import com.xkzoom.pms.mapper.RatePlanMapper;
+import com.xkzoom.pms.service.RatePlanService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.web.bind.annotation.*;
 
-import java.time.LocalDateTime;
 import java.util.List;
 
 @RestController
@@ -17,6 +17,7 @@ import java.util.List;
 public class RatePlanController {
 
     private final RatePlanMapper mapper;
+    private final RatePlanService service;
 
     @GetMapping
     public Result<Page<RatePlan>> list(@RequestParam(defaultValue = "1") long current,
@@ -42,19 +43,12 @@ public class RatePlanController {
 
     @PostMapping
     public Result<RatePlan> create(@RequestBody RatePlan rp) {
-        rp.setId(null);
-        rp.setCreatedAt(LocalDateTime.now());
-        rp.setUpdatedAt(LocalDateTime.now());
-        mapper.insert(rp);
-        return Result.ok(rp);
+        return Result.ok(service.create(rp));
     }
 
     @PutMapping("/{id}")
     public Result<RatePlan> update(@PathVariable Long id, @RequestBody RatePlan rp) {
-        rp.setId(id);
-        rp.setUpdatedAt(LocalDateTime.now());
-        mapper.updateById(rp);
-        return Result.ok(mapper.selectById(id));
+        return Result.ok(service.update(id, rp));
     }
 
     @DeleteMapping("/{id}")

@@ -65,6 +65,19 @@ class RateCalendarServiceTest {
     // ========== 场景 A：清除单日覆盖 ==========
 
     @Test
+    @DisplayName("日历查询：计划与房型不匹配被拒绝（多计划房型只按显式计划查询）")
+    void queryRejectsPlanRoomTypeMismatch() {
+        when(ratePlanMapper.selectById(PLAN_ID)).thenReturn(plan("500.00"));
+
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> service().query(999L, LocalDate.of(2026, 8, 1), LocalDate.of(2026, 8, 3), PLAN_ID));
+
+        assertEquals("房价计划与房型不匹配", e.getMessage());
+        verify(rateCalendarMapper, never()).selectList(any());
+    }
+
+
+    @Test
     @DisplayName("清除已有覆盖：删除该计划该日的显式记录并返回 true")
     void clearOverrideDeletesExplicitRowAndReportsTrue() {
         when(ratePlanMapper.selectById(PLAN_ID)).thenReturn(plan("500.00"));

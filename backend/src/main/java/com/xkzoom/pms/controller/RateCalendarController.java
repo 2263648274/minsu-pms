@@ -24,9 +24,9 @@ public class RateCalendarController {
     @GetMapping
     public Result<List<RateCalendar>> query(
             @RequestParam Long roomTypeId,
+            @RequestParam Long ratePlanId,
             @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate from,
-            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to,
-            @RequestParam(required = false) Long ratePlanId) {
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate to) {
         return Result.ok(service.query(roomTypeId, from, to, ratePlanId));
     }
 
