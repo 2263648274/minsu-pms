@@ -29,6 +29,22 @@
             />
           </el-select>
         </el-form-item>
+        <el-form-item label="房价计划">
+          <el-select
+            v-model="selectedRatePlanId"
+            placeholder="选择计划"
+            style="width: 220px"
+            :disabled="!selectedRoomTypeId || plans.length === 0"
+            @change="loadCalendar"
+          >
+            <el-option
+              v-for="p in plans"
+              :key="String(p.id)"
+              :label="planOptionLabel(p)"
+              :value="p.id"
+            />
+          </el-select>
+        </el-form-item>
         <el-form-item label="范围">
           <el-radio-group v-model="dateRange" @change="loadCalendar">
             <el-radio-button :value="30">30 天</el-radio-button>
@@ -41,7 +57,7 @@
           <el-button :icon="Plus" type="success" @click="openPlanDialog()" :disabled="!selectedRoomTypeId">
             新建房价计划
           </el-button>
-          <el-button :icon="MagicStick" :disabled="!selectedRoomTypeId" @click="openBatchDialog">
+          <el-button :icon="MagicStick" :disabled="!selectedRoomTypeId || !selectedRatePlanId" @click="openBatchDialog">
             批量调价
           </el-button>
         </el-form-item>
@@ -116,6 +132,14 @@
       </template>
       <template v-if="!selectedRoomTypeId">
         <el-empty description="请先选择房型" />
+      </template>
+      <template v-else-if="plans.length === 0">
+        <el-empty description="该房型暂无房价计划，日历价格需要先创建计划后才能维护">
+          <el-button type="primary" :icon="Plus" @click="openPlanDialog()">新建房价计划</el-button>
+        </el-empty>
+      </template>
+      <template v-else-if="!selectedRatePlanId">
+        <el-empty description="请选择要查看/编辑的房价计划" />
       </template>
       <template v-else>
         <div class="legend">
@@ -211,10 +235,10 @@
           </el-select>
         </el-form-item>
         <el-form-item label="适用范围">
-          <el-radio-group v-model="planDialog.form.scopeKind">
-            <el-radio-button value="current">当前房型</el-radio-button>
-            <el-radio-button value="all">全部房型</el-radio-button>
-          </el-radio-group>
+          <el-tag type="info" effect="plain">
+            {{ currentRoomType ? `当前房型：${currentRoomType.name}` : '未选择房型' }}
+          </el-tag>
+          <span class="form-tip">后端模型为一条计划绑定一个房型；多房型关联上线前不提供"全部房型"</span>
         </el-form-item>
         <el-form-item label="优先级">
           <el-input-number v-model="planDialog.form.priority" :min="0" :max="999" />
@@ -389,6 +413,8 @@ const dateRange = ref<30 | 60 | 90>(30)
 
 const plans = ref<RatePlan[]>([])
 const planLoading = ref(false)
+/** 显式选中的计划：日历查询、单日改价、清除、批量调价都以它为上下文 */
+const selectedRatePlanId = ref<ID | undefined>(undefined)
 
 const calendar = ref<DailyRate[]>([])
 const loading = ref(false)
@@ -399,7 +425,6 @@ interface PlanForm {
   strategy: RateStrategy
   priceYuan: number
   pricingUnit: PricingUnit
-  scopeKind: 'current' | 'all'
   priority: number
   active: boolean
   description: string
@@ -409,9 +434,9 @@ function blankPlanForm(): PlanForm {
   return {
     name: '标准价',
     strategy: 'base',
-    priceYuan: 888,
+    // 默认价在 openPlanDialog 里用所选房型 basePrice 覆盖，不硬编码
+    priceYuan: 0,
     pricingUnit: 'per_night',
-    scopeKind: 'current',
     priority: 0,
     active: true,
     description: ''
@@ -440,7 +465,7 @@ const batchDialog = reactive({
   visible: false,
   saving: false,
   form: {
-    priceYuan: 888,
+    priceYuan: 0,
     startDate: '',
     endDate: '',
     skipOverridden: false
@@ -452,6 +477,15 @@ const batchDialog = reactive({
 const currentRoomType = computed(() =>
   roomTypes.value.find(rt => String(rt.id) === String(selectedRoomTypeId.value))
 )
+
+const selectedPlan = computed(() =>
+  plans.value.find(p => String(p.id) === String(selectedRatePlanId.value))
+)
+
+function planOptionLabel(p: RatePlan): string {
+  const status = p.status === 1 ? '' : '（已停用）'
+  return `${p.name} · ¥${(p.price.amount / 100).toLocaleString('zh-CN')}${status}`
+}
 
 // ========== 工具 ==========
 
@@ -488,14 +522,18 @@ async function loadMeta() {
 async function loadPlans() {
   if (selectedRoomTypeId.value === undefined) {
     plans.value = []
+    selectedRatePlanId.value = undefined
     return
   }
   planLoading.value = true
   try {
     plans.value = await listRatePlansByRoomType(selectedRoomTypeId.value)
+    // 自动选中第一个计划；无计划时保持空，由日历区展示创建引导（不隐式建计划）
+    selectedRatePlanId.value = plans.value.length > 0 ? plans.value[0].id : undefined
   } catch (e: any) {
     // 保留原始错误，避免页面静默显示“0”掩盖真正接线问题。
     plans.value = []
+    selectedRatePlanId.value = undefined
     ElMessage.error('加载房价计划失败：' + (e?.message || e))
   } finally {
     planLoading.value = false
@@ -503,7 +541,7 @@ async function loadPlans() {
 }
 
 async function loadCalendar() {
-  if (selectedRoomTypeId.value === undefined) {
+  if (selectedRoomTypeId.value === undefined || selectedRatePlanId.value === undefined) {
     calendar.value = []
     return
   }
@@ -512,8 +550,9 @@ async function loadCalendar() {
     const from = formatYMD(new Date())
     const to = formatYMD(addDays(new Date(), dateRange.value - 1))
     const cal = await queryRateCalendar({
-      propertyId: currentRoomType.value?.propertyId ?? 1,
+      propertyId: currentRoomType.value?.propertyId as ID,
       roomTypeId: selectedRoomTypeId.value,
+      ratePlanId: selectedRatePlanId.value,
       startDate: from,
       endDate: to
     })
@@ -527,7 +566,9 @@ async function loadCalendar() {
 }
 
 async function loadAll() {
-  await Promise.all([loadPlans(), loadCalendar()])
+  // 先载入计划（会重置 selectedRatePlanId），再按选中计划载入日历
+  await loadPlans()
+  await loadCalendar()
 }
 
 function onRoomTypeChange() {
@@ -545,7 +586,6 @@ function openPlanDialog(row?: RatePlan) {
       strategy: row.strategy,
       priceYuan: row.price.amount / 100,
       pricingUnit: row.pricingUnit,
-      scopeKind: row.scope === 'all' ? 'all' : 'current',
       priority: row.priority,
       active: row.status === 1,
       description: row.description ?? ''
@@ -553,6 +593,7 @@ function openPlanDialog(row?: RatePlan) {
   } else {
     const rt = currentRoomType.value
     planDialog.form = blankPlanForm()
+    // 默认价来自所选房型基础价（issue #5：不允许硬编码 888）
     if (rt) planDialog.form.priceYuan = rt.basePrice
   }
   planDialog.visible = true
@@ -563,7 +604,7 @@ async function submitPlan() {
     ElMessage.warning('请输入计划名称')
     return
   }
-  if (!selectedRoomTypeId.value) {
+  if (!selectedRoomTypeId.value || !currentRoomType.value) {
     ElMessage.warning('请先选择房型')
     return
   }
@@ -571,7 +612,8 @@ async function submitPlan() {
   planDialog.saving = true
   try {
     const payload: Partial<RatePlan> = {
-      propertyId: currentRoomType.value?.propertyId ?? 1,
+      // 物业来自所选房型，不静默回退 propertyId=1
+      propertyId: currentRoomType.value.propertyId,
       name: planDialog.form.name.trim(),
       strategy: planDialog.form.strategy,
       pricingUnit: planDialog.form.pricingUnit,
@@ -579,9 +621,7 @@ async function submitPlan() {
       priority: planDialog.form.priority,
       status: planDialog.form.active ? 1 : 0,
       description: planDialog.form.description.trim() || undefined,
-      scope: planDialog.form.scopeKind === 'all'
-        ? 'all'
-        : { roomTypeIds: [selectedRoomTypeId.value] }
+      scope: { roomTypeIds: [selectedRoomTypeId.value] }
     }
     if (planDialog.editing) {
       await updateRatePlan(planDialog.editingId!, payload)
@@ -591,7 +631,7 @@ async function submitPlan() {
       ElMessage.success('房价计划已创建')
     }
     planDialog.visible = false
-    await loadPlans()
+    await loadAll()
   } catch (e: any) {
     ElMessage.error('保存失败：' + (e?.message || e))
   } finally {
@@ -603,7 +643,7 @@ async function togglePlanActive(row: RatePlan) {
   try {
     await updateRatePlan(row.id, { status: row.status === 1 ? 0 : 1 })
     ElMessage.success(row.status === 1 ? '已停用' : '已启用')
-    await loadPlans()
+    await loadAll()
   } catch (e: any) {
     ElMessage.error('操作失败：' + (e?.message || e))
   }
@@ -622,7 +662,7 @@ async function confirmDeletePlan(row: RatePlan) {
   try {
     await deleteRatePlan(row.id)
     ElMessage.success('已删除')
-    await loadPlans()
+    await loadAll()
   } catch (e: any) {
     ElMessage.error('删除失败：' + (e?.message || e))
   }
@@ -640,11 +680,15 @@ function openDailyDialog(day: DailyRate) {
 }
 
 async function submitDaily() {
-  if (!selectedRoomTypeId.value) return
+  if (!selectedRoomTypeId.value || !selectedRatePlanId.value) {
+    ElMessage.warning('请先选择房型和房价计划')
+    return
+  }
   dailyDialog.saving = true
   try {
     await upsertDailyRate({
       roomTypeId: selectedRoomTypeId.value,
+      ratePlanId: selectedRatePlanId.value,
       date: dailyDialog.date,
       price: { amount: yuanToCents(dailyDialog.form.priceYuan), currency: 'CNY' },
       overrideReason: dailyDialog.form.remarks
@@ -660,10 +704,13 @@ async function submitDaily() {
 }
 
 async function confirmDeleteDaily(day: DailyRate) {
-  if (!selectedRoomTypeId.value) return
+  if (!selectedRatePlanId.value) {
+    ElMessage.warning('请先选择房价计划')
+    return
+  }
   try {
     await ElMessageBox.confirm(
-      `确认清除 ${day.date} 的价格覆盖？该日将恢复为房型基础价。`,
+      `确认清除 ${day.date} 在当前计划下的价格覆盖？该日将恢复为房型基础价。`,
       '清除确认',
       { type: 'warning' }
     )
@@ -671,7 +718,7 @@ async function confirmDeleteDaily(day: DailyRate) {
     return
   }
   try {
-    await deleteDailyRate(selectedRoomTypeId.value, day.date)
+    await deleteDailyRate(selectedRatePlanId.value, day.date)
     ElMessage.success('已清除')
     await loadCalendar()
   } catch (e: any) {
@@ -682,8 +729,15 @@ async function confirmDeleteDaily(day: DailyRate) {
 // ========== 批量调价 - 操作 ==========
 
 function openBatchDialog() {
+  if (!selectedRoomTypeId.value || !selectedRatePlanId.value) {
+    ElMessage.warning('请先选择房型和房价计划')
+    return
+  }
   batchDialog.form = {
-    priceYuan: currentRoomType.value?.basePrice ?? 888,
+    // 默认目标价来自所选房型基础价或所选计划价（不硬编码 888）
+    priceYuan: selectedPlan.value
+      ? selectedPlan.value.price.amount / 100
+      : currentRoomType.value?.basePrice ?? 0,
     startDate: formatYMD(new Date()),
     endDate: formatYMD(addDays(new Date(), 6)),
     skipOverridden: false
@@ -692,7 +746,10 @@ function openBatchDialog() {
 }
 
 async function submitBatch() {
-  if (!selectedRoomTypeId.value) return
+  if (!selectedRoomTypeId.value || !selectedRatePlanId.value) {
+    ElMessage.warning('请先选择房型和房价计划')
+    return
+  }
   if (!batchDialog.form.startDate || !batchDialog.form.endDate) {
     ElMessage.warning('请选择日期范围')
     return
@@ -705,6 +762,7 @@ async function submitBatch() {
   try {
     const result = await batchUpdateRates({
       roomTypeId: selectedRoomTypeId.value,
+      ratePlanId: selectedRatePlanId.value,
       startDate: batchDialog.form.startDate,
       endDate: batchDialog.form.endDate,
       price: { amount: yuanToCents(batchDialog.form.priceYuan), currency: 'CNY' },
