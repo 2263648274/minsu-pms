@@ -190,6 +190,7 @@ npm run test:tenant   # 真实双租户隔离冒烟
 npm run test:booking-concurrency # 订单幂等、并发取消与库存竞争
 npm run test:security # RBAC、OTA 密钥加密/脱敏与审计
 npm run test:rate-calendar # 房价日历清除覆盖/跳过已覆盖/并发唯一性
+npm run test:rate-plan     # 房价计划显式房型/物业绑定与跨租户拒绝
 npm run test:quality  # lint + typecheck + build
 ```
 

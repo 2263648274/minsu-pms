@@ -32,11 +32,12 @@ public class RateCalendarService {
     private final RateCalendarMapper mapper;
     private final RatePlanMapper ratePlanMapper;
 
-    /** 查询某房型某段时间的房价 */
+    /** 查询某房型某段时间的房价；ratePlanId 必填，多计划房型只按显式计划查询 */
     public List<RateCalendar> query(Long roomTypeId, LocalDate from, LocalDate to, Long ratePlanId) {
+        requirePlanAccessible(ratePlanId, roomTypeId);
         LambdaQueryWrapper<RateCalendar> w = new LambdaQueryWrapper<>();
         w.eq(RateCalendar::getRoomTypeId, roomTypeId);
-        if (ratePlanId != null) w.eq(RateCalendar::getRatePlanId, ratePlanId);
+        w.eq(RateCalendar::getRatePlanId, ratePlanId);
         w.between(RateCalendar::getStayDate, from, to);
         w.orderByAsc(RateCalendar::getStayDate);
         return mapper.selectList(w);

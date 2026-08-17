@@ -11,10 +11,14 @@
  *
  * 后端基础（参考 RateCalendarController / RoomTypeController）：
  * - GET  /api/room-types/by-property/{propertyId} → RoomType[]
- * - GET  /api/rate-calendar?roomTypeId&from&to[&ratePlanId] → RateCalendar[]
+ * - GET  /api/rate-calendar?roomTypeId&ratePlanId&from&to → RateCalendar[]（ratePlanId 必填）
  * - POST /api/rate-calendar body=RateCalendarUpsertRequest → RateCalendar
  * - POST /api/rate-calendar/batch body=RateCalendarBatchRequest → { inserted, updated, skipped }
  * - DELETE /api/rate-calendar?ratePlanId&stayDate → boolean（清除单日显式覆盖）
+ *
+ * 显式计划上下文（issue #5）：后端模型为"一条 rate plan 绑定一个 room type"，
+ * 查询/改价/清除/批量均由调用方显式携带 ratePlanId；本层不再隐式创建计划，
+ * 不再回退 propertyId=1 或 888 元默认价。
  *
  * 缺数据日期兜底：后端 query 不做兜底，前端保留 mock 兜底逻辑（用房型基础价填充缺日期）。
  * 单日"清除"语义：后端删除该计划该日的 rate_calendar 行；行删除后本文件
@@ -221,36 +225,31 @@ function toFrontendRatePlan(r: BackendRatePlan): RatePlan {
 }
 
 /**
- * 拿该房型一个 RatePlan id（用于日历 upsert/batch 必填字段）。
- * 从后端拿第一个 plan，若无则自动创建一个默认 plan。
+ * 从 payload 解析目标房型：后端模型为"一条 rate plan 绑定一个 room type"，
+ * 写入必须显式携带房型上下文，不允许静默回退到默认值。
  */
-async function ensureDefaultPlanId(roomTypeId: ID, propertyId: ID): Promise<ID> {
-  try {
-    const list = await http<BackendRatePlan[]>(`/rate-plans/by-room-type/${roomTypeId}`)
-    if (list.length > 0) return list[0].id
-  } catch {
-    // 后端无数据时走下面创建逻辑
+function resolveRoomTypeId(payload: Partial<RatePlan> & { roomTypeId?: ID }): ID | undefined {
+  const scope = payload.scope
+  // scope 为 { roomTypeIds: [...] } 对象（修复原 Array.isArray 误判）
+  if (scope && typeof scope === 'object' && 'roomTypeIds' in scope) {
+    const id = scope.roomTypeIds[0]
+    if (id !== undefined && id !== null) return id
   }
-  // 后端没有则创建一个默认基础价 plan
-  const Yuan = 888
-  const payload = {
-    propertyId: Number(propertyId),
-    roomTypeId: Number(roomTypeId),
-    name: '默认基础价',
-    code: `BASE_${roomTypeId}`,
-    basePrice: Yuan,
-    currency: 'CNY',
-    mealPlan: '',
-    minNights: 1,
-    maxNights: 99,
-    description: '系统自动创建',
-    active: 1
+  if (payload.roomTypeId !== undefined && payload.roomTypeId !== null) return payload.roomTypeId
+  return undefined
+}
+
+function requireRoomTypeId(payload: Partial<RatePlan> & { roomTypeId?: ID }): ID {
+  const id = resolveRoomTypeId(payload)
+  if (id === undefined) {
+    throw new Error('缺少房型上下文：房价计划必须显式绑定一个房型')
   }
-  const created = await http<BackendRatePlan>('/rate-plans', {
-    method: 'POST',
-    body: JSON.stringify(payload)
-  })
-  return created.id
+  return id
+}
+
+function requirePropertyId(payload: Partial<RatePlan>): ID {
+  if (payload.propertyId !== undefined && payload.propertyId !== null) return payload.propertyId
+  throw new Error('缺少物业上下文：房价计划必须归属显式指定的物业')
 }
 
 // ========== RatePlan CRUD（已切真后端） ==========
@@ -299,18 +298,22 @@ export async function getRatePlan(id: ID): Promise<RatePlan | undefined> {
 }
 
 export async function createRatePlan(payload: Partial<RatePlan>): Promise<RatePlan> {
-  const scope = payload.scope
-  const roomTypeId = (Array.isArray(scope) && 'roomTypeIds' in scope)
-    ? scope.roomTypeIds[0]
-    : (payload as any).roomTypeId ?? 1
-  const Yuan = payload.price ? Number(payload.price.amount) / 100 : 888
+  // 后端在多房型关联表落地前只支持单房型计划，拒绝无效的"全部房型"提交
+  if (payload.scope === 'all') {
+    throw new Error('后端暂不支持"全部房型"计划，请绑定具体房型')
+  }
+  const roomTypeId = requireRoomTypeId(payload)
+  const propertyId = requirePropertyId(payload)
+  if (!payload.price) {
+    throw new Error('缺少价格：新建房价计划必须显式提供基础价')
+  }
   const body = {
-    propertyId: Number(payload.propertyId ?? 1),
+    propertyId: Number(propertyId),
     roomTypeId: Number(roomTypeId),
     name: payload.name ?? '新建房价计划',
     code: `PLAN_${Date.now()}`,
-    basePrice: Yuan,
-    currency: payload.price?.currency ?? 'CNY',
+    basePrice: Number(payload.price.amount) / 100,
+    currency: payload.price.currency ?? 'CNY',
     mealPlan: '',
     minNights: payload.minNights ?? 1,
     maxNights: payload.maxNights ?? 99,
@@ -325,10 +328,10 @@ export async function createRatePlan(payload: Partial<RatePlan>): Promise<RatePl
 }
 
 export async function updateRatePlan(id: ID, payload: Partial<RatePlan>): Promise<RatePlan | undefined> {
-  const scope = payload.scope
-  const roomTypeId = (Array.isArray(scope) && 'roomTypeIds' in scope)
-    ? scope.roomTypeIds[0]
-    : (payload as any).roomTypeId
+  if (payload.scope === 'all') {
+    throw new Error('后端暂不支持"全部房型"计划，请绑定具体房型')
+  }
+  const roomTypeId = resolveRoomTypeId(payload)
   const Yuan = payload.price ? Number(payload.price.amount) / 100 : undefined
   const body: Record<string, unknown> = {}
   if (payload.name !== undefined) body.name = payload.name
@@ -362,12 +365,14 @@ export async function deleteRatePlan(id: ID): Promise<boolean> {
 // ========== 日历 API（已切真后端） ==========
 
 /**
- * 查询某房型某段时间的房价。
- * 后端不带"缺数据日期兜底"，前端保留 mock 兜底（用房型基础价填充缺日期）。
+ * 查询某房型某段时间的房价。ratePlanId 必填：同一房型存在多个计划时
+ * 只展示并修改当前选中计划的日历。后端不带"缺数据日期兜底"，
+ * 前端用房型基础价填充缺日期（overridden=false）。
  */
 export async function queryRateCalendar(q: RateCalendarQuery): Promise<RateCalendar> {
   const params = new URLSearchParams({
     roomTypeId: String(q.roomTypeId ?? ''),
+    ratePlanId: String(q.ratePlanId),
     from: q.startDate,
     to: q.endDate
   })
@@ -385,6 +390,7 @@ export async function queryRateCalendar(q: RateCalendarQuery): Promise<RateCalen
       out.push({
         date,
         roomTypeId: q.roomTypeId as ID,
+        ratePlanId: q.ratePlanId,
         price: { amount: baseCents, currency: 'CNY' },
         overridden: false
       })
@@ -398,11 +404,10 @@ export async function queryRateCalendar(q: RateCalendarQuery): Promise<RateCalen
   }
 }
 
-/** 单日 upsert：自动保证有 ratePlanId。 */
+/** 单日 upsert：调用方必须显式给出 ratePlanId（读/写均不再隐式创建计划） */
 export async function upsertDailyRate(payload: DailyRateUpdate): Promise<DailyRate> {
-  const ratePlanId = await ensureDefaultPlanId(payload.roomTypeId, 1)
   const body = {
-    ratePlanId,
+    ratePlanId: payload.ratePlanId,
     roomTypeId: payload.roomTypeId,
     stayDate: payload.date,
     price: centsToYuan(payload.price.amount),
@@ -420,32 +425,21 @@ export async function upsertDailyRate(payload: DailyRateUpdate): Promise<DailyRa
 /**
  * 单日"清除"：调用后端 DELETE 端点删除该计划该日的显式覆盖行。
  * 行删除后 queryRateCalendar 的缺行兜底会显示房型基础价且 overridden=false。
- * 该房型无任何计划时必然无显式覆盖，幂等视为清除成功（读/清除操作不隐式建计划）。
  */
-export async function deleteDailyRate(roomTypeId: ID, date: DateString): Promise<boolean> {
-  const ratePlanId = await findFirstPlanId(roomTypeId)
-  if (ratePlanId === null) return true
+export async function deleteDailyRate(ratePlanId: ID, date: DateString): Promise<boolean> {
   await http<boolean>(`/rate-calendar?ratePlanId=${ratePlanId}&stayDate=${date}`, {
     method: 'DELETE'
   })
   return true
 }
 
-/** 找该房型第一个计划 id；只读不创建，无计划返回 null */
-async function findFirstPlanId(roomTypeId: ID): Promise<ID | null> {
-  const list = await http<BackendRatePlan[]>(`/rate-plans/by-room-type/${roomTypeId}`)
-  return list.length > 0 ? list[0].id : null
-}
-
 /**
  * 批量调价：后端 FIXED 模式 + 真实 skipOverridden 语义。
- * skipOverridden=true 时后端保留已有显式覆盖行，只为缺失日期创建记录；
- * 返回按天三向计数 { inserted, updated, skipped }。
+ * ratePlanId 由调用方显式给出；返回按天三向计数 { inserted, updated, skipped }。
  */
 export async function batchUpdateRates(payload: DailyRateBatchUpdate): Promise<DailyRateBatchResult> {
-  const ratePlanId = await ensureDefaultPlanId(payload.roomTypeId, 1)
   const body = {
-    ratePlanId,
+    ratePlanId: payload.ratePlanId,
     roomTypeId: payload.roomTypeId,
     fromDate: payload.startDate,
     toDate: payload.endDate,

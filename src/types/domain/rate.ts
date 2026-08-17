@@ -84,6 +84,8 @@ export interface DailyRate {
 export interface DailyRateUpdate {
   date: DateString
   roomTypeId: ID
+  /** 目标房价计划（后端模型：一条计划绑定一个房型） */
+  ratePlanId: ID
   /** 目标价格（单位：分） */
   price: Money
   overrideReason?: string
@@ -92,6 +94,8 @@ export interface DailyRateUpdate {
 /** 单日房价批量更新请求 */
 export interface DailyRateBatchUpdate {
   roomTypeId: ID
+  /** 目标房价计划（后端模型：一条计划绑定一个房型） */
+  ratePlanId: ID
   startDate: DateString
   endDate: DateString
   /** 目标价格（单位：分） */
@@ -116,6 +120,8 @@ export interface DailyRateBatchResult {
 export interface RateCalendarQuery {
   propertyId: ID
   roomTypeId?: ID
+  /** 显式指定要查询的房价计划（后端必填，避免多计划房型同日多条记录） */
+  ratePlanId: ID
   startDate: DateString
   endDate: DateString
 }

@@ -12,6 +12,7 @@
     "test:booking-concurrency": "node scripts/booking-concurrency-smoke.mjs",
     "test:security": "node scripts/security-smoke.mjs",
     "test:rate-calendar": "node scripts/rate-calendar-smoke.mjs",
+    "test:rate-plan": "node scripts/rate-plan-smoke.mjs",
     "test:quality": "npm run lint && npm run typecheck && npm run build",
     "preview": "vite preview",
     "lint": "eslint .",
