@@ -232,7 +232,7 @@
 
 | Method | Path | 说明 |
 | --- | --- | --- |
-| GET | `/rate-calendar?roomTypeId=1&from=2026-08-01&to=2026-08-31&ratePlanId=1` | 区间查询 |
+| GET | `/rate-calendar?roomTypeId=1&ratePlanId=1&from=2026-08-01&to=2026-08-31` | 区间查询（ratePlanId 必填，多计划房型按显式计划返回） |
 | POST | `/rate-calendar` | 单日 upsert |
 | POST | `/rate-calendar/batch` | 批量调价/关房（skipOverridden 语义见下） |
 | DELETE | `/rate-calendar?ratePlanId=1&stayDate=2026-08-15` | 清除单日显式覆盖 |
@@ -274,6 +274,13 @@
 约束：`fromDate <= toDate` 且范围一次最多 366 天；`ratePlanId` 必须属于当前租户且与 `roomTypeId` 匹配（否则统一报“房价计划不存在或无权访问”，不泄露存在性）；缺行日期在 FIXED 用 `value`、比例/金额模式回落计划 `basePrice` 计算。
 
 **DELETE 响应**：`boolean`。删除当前租户、指定计划、指定日期的显式覆盖行；该日无行时幂等返回 `false`。行删除后前端查询回落房型基础价并标记 `overridden=false`。
+
+**房价计划写入校验**（`POST/PUT /api/rate-plans`，后端模型为一条计划绑定一个房型）：
+
+- `roomTypeId` 必须属于当前租户，否则 400 `房型不存在或无权访问`
+- `rate_plan.property_id` 必须与 `room_type.property_id` 一致，否则 400 `物业与房型不匹配`
+- `name` 不能为空；`code` 为空时自动生成
+- 更新时改绑房型同样执行上述校验；跨租户计划不可见（400 `房价计划不存在或无权访问`）
 
 ---
 

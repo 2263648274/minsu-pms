@@ -113,6 +113,7 @@ jobs:
           npm run test:booking-concurrency
           npm run test:security
           npm run test:rate-calendar
+          npm run test:rate-plan
       - name: Upload backend log on failure
         if: failure()
         uses: actions/upload-artifact@v4
