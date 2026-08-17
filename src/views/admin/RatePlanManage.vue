@@ -703,14 +703,14 @@ async function submitBatch() {
   }
   batchDialog.saving = true
   try {
-    const count = await batchUpdateRates({
+    const result = await batchUpdateRates({
       roomTypeId: selectedRoomTypeId.value,
       startDate: batchDialog.form.startDate,
       endDate: batchDialog.form.endDate,
       price: { amount: yuanToCents(batchDialog.form.priceYuan), currency: 'CNY' },
       skipOverridden: batchDialog.form.skipOverridden
     })
-    ElMessage.success(`已处理 ${count} 天`)
+    ElMessage.success(`批量调价完成：新增 ${result.inserted} 天，更新 ${result.updated} 天，跳过 ${result.skipped} 天`)
     batchDialog.visible = false
     await loadCalendar()
   } catch (e: any) {

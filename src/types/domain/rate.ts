@@ -100,6 +100,16 @@ export interface DailyRateBatchUpdate {
   skipOverridden?: boolean
 }
 
+/** 单日房价批量更新结果（后端按天三向计数） */
+export interface DailyRateBatchResult {
+  /** 范围内原本缺行、本次创建的天数 */
+  inserted: number
+  /** 范围内已有行、本次改价的天数 */
+  updated: number
+  /** 因 skipOverridden 保持原状的已覆盖天数 */
+  skipped: number
+}
+
 // ========== 房价日历查询 ==========
 
 /** 房价日历查询参数 */
