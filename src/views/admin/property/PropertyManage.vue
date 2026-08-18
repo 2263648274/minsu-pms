@@ -56,6 +56,7 @@
           <span class="sub">点击行查看详情 · 支持新增 / 编辑 / 启停 / 删除</span>
         </div>
       </template>
+      <LoadErrorState :error="loadError" :retrying="loading" @retry="loadList">
       <el-table
         :data="list"
         v-loading="loading"
@@ -110,6 +111,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </LoadErrorState>
 
       <el-pagination
         v-model:current-page="pagination.current"
@@ -240,6 +242,8 @@ import {
   deleteProperty,
   type PropertyView
 } from '@/services/api'
+import LoadErrorState from '@/components/pms/LoadErrorState.vue'
+import { describeError } from '@/services/request'
 
 // ========== 常量 ==========
 
@@ -283,6 +287,8 @@ const pagination = reactive({
 const total = ref(0)
 const list = ref<PropertyView[]>([])
 const loading = ref(false)
+/** 页面级加载失败态：非空时主内容区切换为失败原因 + 重试（issue #1） */
+const loadError = ref<string | null>(null)
 
 // 时间选择器（HH:mm）— 转字符串避免 dialog 双向绑定类型问题
 const checkInTimeModel = ref<string>('14:00')
@@ -361,6 +367,7 @@ const formRules: FormRules = {
 
 const loadList = async () => {
   loading.value = true
+  loadError.value = null
   try {
     const res = await getPropertyPage({
       current: pagination.current,
@@ -374,8 +381,8 @@ const loadList = async () => {
     list.value = rows
     total.value = res.total
   } catch (e) {
+    loadError.value = describeError(e)
     ElMessage.error('加载物业列表失败')
-    console.error(e)
   } finally {
     loading.value = false
   }
@@ -466,9 +473,8 @@ const submit = async () => {
     }
     dialog.visible = false
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败')
-    console.error(e)
+  } catch (e) {
+    ElMessage.error('保存失败：' + describeError(e))
   } finally {
     dialog.submitting = false
   }
@@ -489,8 +495,7 @@ const toggleStatus = async (row: PropertyView) => {
     ElMessage.success(`已${tip}「${row.name}」`)
     loadList()
   } catch (e) {
-    ElMessage.error(`${tip}失败`)
-    console.error(e)
+    ElMessage.error(`${tip}失败：` + describeError(e))
   }
 }
 
@@ -513,8 +518,7 @@ const confirmDelete = async (row: PropertyView) => {
     }
     loadList()
   } catch (e) {
-    ElMessage.error('删除失败')
-    console.error(e)
+    ElMessage.error('删除失败：' + describeError(e))
   }
 }
 

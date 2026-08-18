@@ -74,6 +74,7 @@
           <span class="sub">点击"详情"查看请求 / 响应 / 错误堆栈</span>
         </div>
       </template>
+      <LoadErrorState :error="loadError" :retrying="loading" @retry="loadRows">
       <el-table
         :data="rows"
         v-loading="loading"
@@ -138,6 +139,7 @@
           </template>
         </el-table-column>
       </el-table>
+      </LoadErrorState>
 
       <el-pagination
         v-model:current-page="pagination.current"
@@ -183,6 +185,8 @@ import { ref, reactive, onMounted, computed } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Search, Refresh, Plus, Document } from '@element-plus/icons-vue'
 import { channelList } from '@/channels/adapters/registry'
+import LoadErrorState from '@/components/pms/LoadErrorState.vue'
+import { describeError } from '@/services/request'
 import {
   listSyncLogs,
   createSyncLog,
@@ -254,6 +258,8 @@ const pagination = reactive({
 const rows = ref<ChannelSyncLog[]>([])
 const total = ref(0)
 const loading = ref(false)
+/** 页面级加载失败态：非空时主内容区切换为失败原因 + 重试（issue #1） */
+const loadError = ref<string | null>(null)
 
 const detail = reactive({
   visible: false,
@@ -280,6 +286,7 @@ const successRate = computed(() => {
 
 const loadRows = async () => {
   loading.value = true
+  loadError.value = null
   try {
     const res: PageResult<ChannelSyncLog> = await listSyncLogs({
       channelId: filters.channelId || undefined,
@@ -296,8 +303,8 @@ const loadRows = async () => {
     rows.value = data
     total.value = res.total
   } catch (e) {
+    loadError.value = describeError(e)
     ElMessage.error('加载同步日志失败')
-    console.error(e)
   } finally {
     loading.value = false
   }
@@ -311,8 +318,9 @@ const loadStats = async () => {
       endDate: filters.dateRange[1] || undefined
     })
   } catch (e) {
-    console.warn('load sync log stats failed', e)
+    // 统计失败不阻塞日志列表：置空后 Hero 区隐藏成功率，并给出可诊断提示
     stats.value = null
+    ElMessage.warning('统计加载失败：' + describeError(e))
   }
 }
 
@@ -357,8 +365,7 @@ const simulateSync = async () => {
     await loadRows()
     loadStats()
   } catch (e) {
-    ElMessage.error('写入同步日志失败')
-    console.error(e)
+    ElMessage.error('写入同步日志失败：' + describeError(e))
   }
 }
 

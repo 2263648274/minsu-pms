@@ -1,7 +1,8 @@
 <template>
   <div class="dashboard">
     <!-- Stats Bento Grid -->
-    <div class="stats-bento mb-6">
+    <LoadErrorState :error="statsError" :retrying="loading" @retry="loadStats">
+    <div class="stats-bento mb-6" :class="{ 'is-loading': loading && !statsData }">
       <div
         v-for="(stat, index) in stats"
         :key="index"
@@ -26,6 +27,8 @@
         </div>
       </div>
     </div>
+
+    </LoadErrorState>
 
     <div class="content-grid">
       <!-- 房态分布 -->
@@ -181,6 +184,8 @@ import { ElMessage } from 'element-plus'
 import dashboardService from '@/services/dashboard'
 import type { ReportDailyTrend, ReportChannelStat, ReportRoomTypeStat } from '@/services/report'
 import { channelList } from '@/channels/adapters/registry'
+import LoadErrorState from '@/components/pms/LoadErrorState.vue'
+import { describeError } from '@/services/request'
 import type { DashboardStats } from '@/types'
 import {
   TrendCharts,
@@ -201,6 +206,8 @@ interface SpotlightPosition {
 
 const statsData = ref<DashboardStats | null>(null)
 const loading = ref(false)
+/** 汇总加载失败态：非空时统计区切换为失败原因 + 重试（issue #1） */
+const statsError = ref<string | null>(null)
 const revenueTrend = ref<ReportDailyTrend[]>([])
 const channelPerformance = ref<ReportChannelStat[]>([])
 const roomTypePerformance = ref<ReportRoomTypeStat[]>([])
@@ -208,29 +215,29 @@ const roomTypePerformance = ref<ReportRoomTypeStat[]>([])
 const stats = ref([
   {
     label: '今日营收',
-    value: '¥0',
+    value: '—',
     sub: '',
     color: 'linear-gradient(135deg, #f56c6c, #f89898)',
     icon: Money
   },
   {
     label: '本月营收',
-    value: '¥0',
-    sub: '累计 ¥0',
+    value: '—',
+    sub: '',
     color: 'linear-gradient(135deg, #67c23a, #95d475)',
     icon: TrendCharts
   },
   {
     label: '已入住',
-    value: '0 间',
-    sub: '入住率 0%',
+    value: '— 间',
+    sub: '',
     color: 'linear-gradient(135deg, #409eff, #79bbff)',
     icon: House
   },
   {
     label: '客户总数',
-    value: '0',
-    sub: '本月新增 0 位',
+    value: '—',
+    sub: '',
     color: 'linear-gradient(135deg, #e6a23c, #ebb563)',
     icon: User
   }
@@ -283,6 +290,7 @@ const formatDate = (date: Date) => {
 
 const loadStats = async () => {
   loading.value = true
+  statsError.value = null
   try {
     const today = new Date()
     const startDate = formatDate(new Date(today.getFullYear(), today.getMonth(), 1))
@@ -334,8 +342,9 @@ const loadStats = async () => {
       { status: 'cleaning', label: '打扫中', count: data.cleaningRooms, color: '#e6a23c', icon: Brush },
       { status: 'maintenance', label: '维修中', count: data.maintenanceRooms, color: '#f56c6c', icon: Tools }
     ]
-  } catch (error) {
-    ElMessage.error(error instanceof Error ? error.message : '仪表盘加载失败')
+  } catch (e) {
+    statsError.value = describeError(e)
+    ElMessage.error('仪表盘加载失败')
   } finally {
     loading.value = false
   }
@@ -380,6 +389,15 @@ onMounted(() => {
   }
 
   // Stats Bento Grid - 2x2
+  .stats-bento {
+    &.is-loading .stat-value {
+      opacity: 0.45;
+      animation: dashboard-value-pulse 1.2s ease-in-out infinite;
+    }
+  }
+  @keyframes dashboard-value-pulse {
+    50% { opacity: 0.15; }
+  }
   .stats-bento {
     display: grid;
     grid-template-columns: repeat(2, 1fr);

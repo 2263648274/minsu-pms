@@ -51,9 +51,17 @@
 | OTA 凭证保护 | 通过（自动化） | 安全冒烟验证数据库密文存储、接口响应掩码和审计记录；浏览器未展示明文密钥 |
 | 财务对账 | 通过（页面与聚合接口） | 月份/渠道筛选、汇总、渠道明细、订单明细与 CSV 导出入口可加载 |
 | 营业报表 | 通过（页面与聚合接口） | 营收、间夜、ADR、RevPAR、入住率、趋势和贡献区块可加载 |
-| 浏览器控制台 | 待处理 | 浏览器元数据持续报告 1 条 console error；现有浏览器工具未返回错误正文，因此不能宣称控制台完全干净 |
+| 浏览器控制台 | 通过 | 2026-08-18 复现定位：唯一 console error 为 `GET /favicon.ico → 404`（`public/` 目录缺失，`index.html` 引用 favicon），正文为标准网络错误 `Failed to load resource: the server responded with a status of 404 (Not Found)`，每页加载必现、无 X-Request-ID（静态资源不经后端）。已补 `public/favicon.ico` 并回归：登录后依次访问仪表盘、订单、客户、房源、渠道、同步日志，favicon 200、全部 API 请求 200，成功路径 console error 为 0（触发步骤与请求标识见下方补充记录） |
 
 > 页面首次跳转后如果立即提取，异步数据可能暂时显示为 0；等待加载完成后订单、客户和仪表盘演示数据正常出现。
+> 2026-08-18 更新：仪表盘统计卡、订单/客户汇总条已改为加载期间显示"— / 统计加载中…"，不再先渲染误导性 0 值；仪表盘、渠道、渠道同步日志、房源四个页面增加页面级失败态与重试入口，失败提示附带后端 `X-Request-ID`（示例 `request_id=3e39171f-2ebb-4bee-aa69-7df0154f6a43`），401 仍走既有登录失效流程，500/网络失败不再被展示为空数据。
+
+### 浏览器复现与回归记录（2026-08-18）
+
+- 环境：本地 MySQL 8.0.43 + 后端 dev profile（8090）+ Vite dev server（5173），账号 admin。
+- 复现步骤：登录 → 依次访问 `/admin/dashboard`、`/admin/booking`、`/admin/guest`、`/admin/property`、`/admin/channel`、`/admin/channel/sync-log`。
+- 复现结论：六页全部 API 请求（dashboard/overview、reports/*、bookings、customers×6、rooms、properties、channels、sync-logs、sync-logs/stats 等）均为 200 且响应头带 `X-Request-ID`；应用层无 console error。唯一 console error 为 favicon 404（浏览器元数据），与历史验收记录"1 条 console error"吻合，当日即修复。
+- 回归结论：补 favicon 后复走六页，`/favicon.ico` 返回 200（217 字节），控制台成功路径 0 error。
 
 ## 数据库现场检查
 
@@ -85,7 +93,7 @@
 3. 导入或录入少量真实客户与历史/未来订单，并核对隐私授权。
 4. 由家中实际操作人员完成一轮“新建订单 → 入住 → 退房 → 财务/报表核对”。
 5. 在独立环境执行一次数据库备份与恢复演练，并记录恢复时间和数据核对结果。
-6. 定位并清除浏览器当前 1 条 console error。
+6. ~~定位并清除浏览器当前 1 条 console error~~（2026-08-18 已完成：favicon 404 修复，见上方浏览器控制台行与复现记录）。
 7. 在目标服务器按生产环境变量启动 Compose，验证 HTTPS、域名、日志留存、监控告警和重启恢复。
 8. 分别与携程等 OTA 签约，取得正式接口/渠道管理权限后再做房型映射、库存/房价推送、订单拉取、回调验签和对账联调。
 

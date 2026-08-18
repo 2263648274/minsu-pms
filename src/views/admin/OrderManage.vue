@@ -44,9 +44,10 @@
         <el-icon><Plus /></el-icon> 新建订单
       </button>
       <div class="spacer"></div>
-      <span class="summary">
+      <span class="summary" v-if="!loading">
         共 {{ total }} 单 · 合计 <strong>¥{{ totalAmount.toLocaleString('zh-CN') }}</strong>
       </span>
+      <span class="summary" v-else>统计加载中…</span>
     </div>
 
     <!-- 数据表格 -->
