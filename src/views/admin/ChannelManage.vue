@@ -22,6 +22,7 @@
           <el-tag type="info" size="small">Phase 2 渠道配置</el-tag>
         </div>
       </template>
+      <LoadErrorState :error="loadError" :retrying="loading" @retry="loadList">
       <el-row :gutter="16">
         <el-col v-for="ch in cardsWithStatus" :key="ch.id" :xs="24" :sm="12" :md="8" :lg="4">
           <el-card
@@ -58,6 +59,7 @@
           </el-card>
         </el-col>
       </el-row>
+      </LoadErrorState>
       <el-alert
         title="Phase 2 实施说明"
         type="info"
@@ -192,6 +194,8 @@ import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage, ElMessageBox, FormInstance, FormRules } from 'element-plus'
 import { Connection, Position, Setting } from '@element-plus/icons-vue'
 import { channelList, type ChannelMeta } from '@/channels/adapters/registry'
+import LoadErrorState from '@/components/pms/LoadErrorState.vue'
+import { describeError } from '@/services/request'
 import {
   getChannelList,
   createChannel,
@@ -222,6 +226,8 @@ const defaultForm = (): DialogForm => ({ code: '', name: '', enabled: 1 })
 
 const list = ref<ChannelView[]>([])
 const loading = ref(false)
+/** 页面级加载失败态：非空时主内容区切换为失败原因 + 重试（issue #1） */
+const loadError = ref<string | null>(null)
 
 const dialog = reactive({
   visible: false,
@@ -266,11 +272,13 @@ const cardsWithStatus = computed<ChannelCard[]>(() => {
 
 const loadList = async () => {
   loading.value = true
+  loadError.value = null
   try {
     list.value = await getChannelList()
   } catch (e) {
+    // 401 已由请求层跳登录；这里保留页面级失败态与重试入口，不把失败伪装成空列表
+    loadError.value = describeError(e)
     ElMessage.error('加载渠道列表失败')
-    console.error(e)
   } finally {
     loading.value = false
   }
@@ -330,9 +338,8 @@ const submit = async () => {
     }
     dialog.visible = false
     loadList()
-  } catch (e: any) {
-    ElMessage.error(e?.message || '保存失败')
-    console.error(e)
+  } catch (e) {
+    ElMessage.error('保存失败：' + describeError(e))
   } finally {
     dialog.submitting = false
   }
@@ -346,8 +353,7 @@ const toggleEnabled = async (row: ChannelView, val: boolean) => {
     ElMessage.success(`${row.name} 已${val ? '启用' : '停用'}`)
     loadList()
   } catch (e) {
-    ElMessage.error('操作失败')
-    console.error(e)
+    ElMessage.error('操作失败：' + describeError(e))
   }
 }
 
@@ -362,8 +368,7 @@ const pingChannel = async (row: ChannelView) => {
     }
     loadList()
   } catch (e) {
-    ElMessage.error('检测请求失败')
-    console.error(e)
+    ElMessage.error('检测请求失败：' + describeError(e))
   } finally {
     row.__pinging = false
   }
@@ -375,8 +380,7 @@ const resetError = async (row: ChannelView) => {
     ElMessage.success('错误状态已清除')
     loadList()
   } catch (e) {
-    ElMessage.error('清除失败')
-    console.error(e)
+    ElMessage.error('清除失败：' + describeError(e))
   }
 }
 
@@ -391,8 +395,7 @@ const confirmDelete = async (row: ChannelView) => {
     ElMessage.success('渠道已删除')
     loadList()
   } catch (e) {
-    ElMessage.error('删除失败')
-    console.error(e)
+    ElMessage.error('删除失败：' + describeError(e))
   }
 }
 

@@ -34,9 +34,10 @@
     <div class="action-bar mb-4">
       <button type="button" class="linear-btn linear-btn--primary" @click="handleAdd">新增客户</button>
       <div class="spacer"></div>
-      <span class="summary">
+      <span class="summary" v-if="!loading">
         共 {{ total }} 位 · 累计消费 <strong>¥{{ totalSpend.toLocaleString('zh-CN') }}</strong>
       </span>
+      <span class="summary" v-else>统计加载中…</span>
     </div>
 
     <!-- 数据表格 -->
