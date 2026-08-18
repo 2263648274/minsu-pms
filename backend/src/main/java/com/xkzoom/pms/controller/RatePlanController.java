@@ -41,6 +41,11 @@ public class RatePlanController {
                         .orderByAsc(RatePlan::getBasePrice)));
     }
 
+    @GetMapping("/{id}")
+    public Result<RatePlan> getById(@PathVariable Long id) {
+        return Result.ok(service.getById(id));
+    }
+
     @PostMapping
     public Result<RatePlan> create(@RequestBody RatePlan rp) {
         return Result.ok(service.create(rp));

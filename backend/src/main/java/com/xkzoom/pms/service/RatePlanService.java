@@ -45,6 +45,15 @@ public class RatePlanService {
         return req;
     }
 
+    public RatePlan getById(Long id) {
+        // 租户拦截器自动注入 WHERE tenant_id = ?；跨租户访问自然得到 null
+        RatePlan existing = ratePlanMapper.selectById(id);
+        if (existing == null) {
+            throw new BusinessException("房价计划不存在或无权访问");
+        }
+        return existing;
+    }
+
     @Transactional(rollbackFor = Exception.class)
     public RatePlan update(Long id, RatePlan patch) {
         RatePlan existing = ratePlanMapper.selectById(id);

@@ -169,6 +169,30 @@ class RatePlanServiceTest {
         assertEquals(updated, existing);
     }
 
+    // ========== 按 ID 查询 ==========
+
+    @Test
+    @DisplayName("按 ID 查询：返回当前租户可访问的计划")
+    void getByIdReturnsExistingPlan() {
+        when(ratePlanMapper.selectById(PLAN_ID)).thenReturn(existingPlan());
+
+        RatePlan plan = service().getById(PLAN_ID);
+
+        assertEquals(PLAN_ID, plan.getId());
+        assertEquals("标准价", plan.getName());
+        assertEquals(ROOM_TYPE_ID, plan.getRoomTypeId());
+    }
+
+    @Test
+    @DisplayName("按 ID 查询：计划不存在或跨租户被拒绝，统一文案不泄露存在性")
+    void getByIdRejectsMissingOrCrossTenant() {
+        when(ratePlanMapper.selectById(999L)).thenReturn(null);
+
+        BusinessException e = assertThrows(BusinessException.class,
+                () -> service().getById(999L));
+        assertEquals("房价计划不存在或无权访问", e.getMessage());
+    }
+
     // ========== 构造工具 ==========
 
     private RatePlan plan() {
